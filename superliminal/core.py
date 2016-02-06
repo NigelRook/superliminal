@@ -14,6 +14,10 @@ class SuperliminalCore:
         self._settings = settings
         self._db_path = db_path
 
+    @property
+    def settings(self):
+	return self._settings
+
     def __enter__(self):
         logger.debug("Connecting to providers")
         self._provider_pool = subliminal.api.ProviderPool(
