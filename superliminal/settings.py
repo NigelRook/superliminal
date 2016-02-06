@@ -20,6 +20,10 @@ class Settings:
         self._parser.set('general', 'desired_movie_score', str(88))
         self._parser.set('general', 'desired_episode_score', str(204))
 
+        self._parser.add_section('sonarr')
+        self._parser.set('sonarr', 'url', 'http://localhost:8989')
+        self._parser.set('sonarr', 'apikey', '')
+
         logger.info("Loading settings from %s", path)
         self._parser.read(path)
 
@@ -79,3 +83,11 @@ class Settings:
             if self._parser.has_section(provider.name):
                 rv[provider.name] = {k: v for k, v in self._parser.items(provider.name)}
         return rv
+
+    @property
+    def sonarr_url(self):
+        return self._parser.get('sonarr', 'url')
+
+    @property
+    def sonarr_api_key(self):
+        return self._parser.get('sonarr', 'apikey')
