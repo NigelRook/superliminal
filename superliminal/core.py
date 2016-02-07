@@ -73,7 +73,7 @@ class SuperliminalCore:
 
     def _download_best_subtitles(self, path, video, lang, min_score):
         logger.debug("_download_best_subtitles(%s, %s, %s, %d)", path, video, lang, min_score)
-        subs = self._provider_pool.list_subtitles(video, self._settings.languages)
+        subs = self._provider_pool.list_subtitles(video, {lang})
         downloaded = self._datastore.get_downloads_for_video(path)
         sub, score = self._find_best_sub(path, video, lang, subs, downloaded)
         if score < min_score:
