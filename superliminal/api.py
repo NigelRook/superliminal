@@ -1,4 +1,5 @@
 import logging
+import os.path
 from tornado.web import RequestHandler, Application
 from tornado.ioloop import IOLoop
 from tornado.escape import json_decode
@@ -49,7 +50,7 @@ class SonarrHandler(RequestHandler):
                 file_data = json_decode(response.body)
 
                 path = file_data['path']
-                name = file_data['sceneName']
+                name = file_data['sceneName']+os.path.splitext(path)[1]
                 logger.info("ADD: %s -> %s", path, name)
                 self._core.add_video(path, name)
 
