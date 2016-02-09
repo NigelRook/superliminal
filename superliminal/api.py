@@ -12,15 +12,6 @@ class AddHandler(RequestHandler):
         self._core = core_factory.get()
 
     def post(self):
-        if self._is_sonarr_configured() and 'Sonarr' in self.request.headers['User-Agent']:
-            self.handle_sonarr()
-        else:
-            self.handle_default()
-
-    def _is_sonarr_configured(self):
-        return self._core.settings.sonarr_api_key != '' and self._core.settings.sonarr_url != ''
-
-    def handle_default(self):
         data = json_decode(self.request.body)
         path = data['path']
         name = data['name'] if 'name' in data else data['path']
@@ -28,7 +19,11 @@ class AddHandler(RequestHandler):
         with self._core:
             self._core.add_video(path, name)
 
-    def handle_sonarr(self):
+class SonarrHandler(RequestHandler):
+    def initialize(self, core_factory):
+        self._core = core_factory.get()
+
+    def post(self):
         data = json_decode(self.request.body)
         event_type = data['EventType']
         if event_type in ['Test', 'Rename']:
@@ -58,12 +53,11 @@ class AddHandler(RequestHandler):
                 logger.info("ADD: %s -> %s", path, name)
                 self._core.add_video(path, name)
 
-        return
-
 def run(core_factory):
     init_params = { 'core_factory': core_factory }
     routes = [
-        ('/add', AddHandler, init_params)
+        ('/add', AddHandler, init_params),
+        ('/add/sonarr', SonarrHandler, init_params)
     ]
     application = Application(routes)
     http_server = HTTPServer(application)
