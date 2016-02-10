@@ -1,2 +1,2 @@
 *.pyc
-*.dist_info
+libs/*.dist-info/
