@@ -51,7 +51,7 @@ class SonarrHandler(RequestHandler):
 
                 path = file_data['path']
                 name = file_data['sceneName']+os.path.splitext(path)[1]
-                logger.info("ADD: %s -> %s", path, name)
+                logger.info("ADD (sonarr): %s -> %s", path, name)
                 self._core.add_video(path, name)
 
 def run(core_factory):
