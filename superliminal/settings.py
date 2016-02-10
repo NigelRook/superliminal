@@ -24,6 +24,10 @@ class Settings:
         self._parser.set('sonarr', 'url', 'http://localhost:8989')
         self._parser.set('sonarr', 'apikey', '')
 
+        self._parser.add_section('couchpotato')
+        self._parser.set('couchpotato', 'url', 'http://localhost:5050')
+        self._parser.set('couchpotato', 'apikey', '')
+
         logger.info("Loading settings from %s", path)
         self._parser.read(path)
 
@@ -91,3 +95,11 @@ class Settings:
     @property
     def sonarr_api_key(self):
         return self._parser.get('sonarr', 'apikey')
+
+    @property
+    def couchpotato_url(self):
+        return self._parser.get('couchpotato', 'url')
+
+    @property
+    def couchpotato_api_key(self):
+        return self._parser.get('couchpotato', 'apikey')
