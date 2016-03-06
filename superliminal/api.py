@@ -27,20 +27,30 @@ class CouchPotatoHandler(RequestHandler):
         self._core = core_factory.get()
 
     def post(self):
-        id = self.request.body_arguments['imdb_id']
+        if ((not 'imdb_id' in self.request.body_arguments) or
+            (not self.request.body_arguments['message'][0].startswith('Downloaded'))):
+            logger.debug('Ignoring invalid call to /add/couchpotato. body:%s', self.request.body)
+            return
+
+        logger.debug('/add/couchpotato content-type:%s, body:%s',
+                     self.request.headers['Content-Type'], self.request.body)
+
+        logger.debug(self.request.body_arguments['imdb_id'])
+        id = self.request.body_arguments['imdb_id'][0]
 
         http_client = HTTPClient()
         request = HTTPRequest(
             method='GET',
-            url='%s/api/%s/media.get?id=%d' %
+            url='%s/api/%s/media.get?id=%s' %
                 (self._core.settings.couchpotato_url,
-                 self,_core.settings.couchpotato_api_key,
+                 self._core.settings.couchpotato_api_key,
                  url_escape(id)))
         response = http_client.fetch(request)
         movie_data = json_decode(response.body)
-        release = next((release for release in movie_data['media']['releases'] if release['status'] == 'done'))
+        release = next((release for release in movie_data['media']['releases'] if release['status'] == 'downloaded'))
+        logger.debug('release: %s', release)
         path = release['files']['movie'][0]
-        name = release['info']['name']+os.path.splitext(path)[1]
+        name = release['info']['name'].strip()+os.path.splitext(path)[1]
         logger.info("ADD (couchpotato): %s -> %s", path, name)
 
         with self._core:
