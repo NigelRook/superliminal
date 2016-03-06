@@ -53,6 +53,7 @@ class SonarrHandler(RequestHandler):
 
     def post(self):
         data = json_decode(self.request.body)
+        logger.debug('Sonarr download: %s', data)
         event_type = data['EventType']
         if event_type in ['Test', 'Rename']:
             return
@@ -68,6 +69,7 @@ class SonarrHandler(RequestHandler):
                     url='%s/api/Episode/%d' % (self._core.settings.sonarr_url, id))
                 response = http_client.fetch(request)
                 episode_data = json_decode(response.body)
+                logger.debug('Sonarr episode data: %s', episode_data)
 
                 file_id = episode_data['episodeFileId']
                 request = HTTPRequest(
@@ -75,6 +77,7 @@ class SonarrHandler(RequestHandler):
                     url='%s/api/EpisodeFile/%d' % (self._core.settings.sonarr_url, file_id))
                 response = http_client.fetch(request)
                 file_data = json_decode(response.body)
+                logger.debug('Sonarr file data: %s', file_data)
 
                 path = file_data['path']
                 name = file_data['sceneName']+os.path.splitext(path)[1]
