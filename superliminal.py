@@ -75,7 +75,11 @@ if __name__ == '__main__':
 
     logfile = os.path.join(logs_dir, 'superliminal.log')
 
-    logging.basicConfig(level='DEBUG', filename=logfile)
+    logging.basicConfig(level=logging.DEBUG, filename=logfile)
+
+    # Don't want debug logging from everyone
+    for logger_name in ['guessit', 'subliminal', 'tornado', 'stevedore']:
+        logging.getLogger(logger_name).setLevel(logging.INFO)
 
     logger.info("Starting up...")
 
