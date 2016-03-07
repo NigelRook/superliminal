@@ -120,6 +120,7 @@ if __name__ == '__main__':
 
     logger.info("Starting periodic better subs checking thread...")
     checker = Checker(settings, core_factory)
+    checker.start()
 
     try:
         superliminal.api.run(core_factory)

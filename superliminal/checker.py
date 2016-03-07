@@ -17,7 +17,7 @@ class Checker:
         return self._settings.search_interval_hours * 60 * 60
 
     def _start_timer(self):
-        self._timer = Timer(self._get_inteval(), self._check)
+        self._timer = Timer(self._get_interval(), self._check)
         self._timer.daemon = True
         self._timer.start()
 
