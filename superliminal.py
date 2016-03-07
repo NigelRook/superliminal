@@ -125,4 +125,5 @@ if __name__ == '__main__':
     try:
         superliminal.api.run(core_factory)
     except KeyboardInterrupt:
+        logger.info("Shutting down...")
         pass
