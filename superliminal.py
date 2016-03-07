@@ -63,6 +63,27 @@ def get_opts(args):
 
     return opts
 
+def init_logging(filename, level):
+    logger = logging.getLogger()
+
+    formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+
+    ch = logging.StreamHandler(stream=sys.stdout)
+    ch.setFormatter(formatter)
+
+    logger.addHandler(ch)
+
+    fh = logging.handlers.TimedRotatingFileHandler(filename=filename, when='W0', interval=1, backupCount=5)
+    fh.setFormatter(formatter)
+
+    logger.addHandler(fh)
+
+    logger.setLevel(level)
+
+    # Don't want debug logging from everyone
+    for logger_name in ['guessit', 'subliminal', 'tornado', 'stevedore']:
+        logging.getLogger(logger_name).setLevel(logging.INFO)
+
 if __name__ == '__main__':
     opts = get_opts(sys.argv[1:])
 
@@ -75,11 +96,7 @@ if __name__ == '__main__':
 
     logfile = os.path.join(logs_dir, 'superliminal.log')
 
-    logging.basicConfig(level=logging.DEBUG, filename=logfile)
-
-    # Don't want debug logging from everyone
-    for logger_name in ['guessit', 'subliminal', 'tornado', 'stevedore']:
-        logging.getLogger(logger_name).setLevel(logging.INFO)
+    init_logging(logfile, logging.DEBUG)
 
     logger.info("Starting up...")
 
