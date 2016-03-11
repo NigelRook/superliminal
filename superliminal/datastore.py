@@ -59,20 +59,16 @@ class NoSuchVideoError(Exception):
 
 class SqLiteDataStore:
     _init_sql = """
-        CREATE TABLE videos (id INTEGER PRIMARY KEY, path TEXT, data TEXT, type TEXT, added TEXT);
-        CREATE TABLE downloads (id INTEGER PRIMARY KEY, video INTEGER REFERENCES videos, provider TEXT, sub_id TEXT, language TEXT, score INTEGER, downloaded TEXT);
-        CREATE INDEX ix_videos_path ON videos(path);
-        CREATE INDEX fk_downloaded_videos ON downloads(video);
+        CREATE TABLE IF NOT EXISTS videos (id INTEGER PRIMARY KEY, path TEXT, data TEXT, type TEXT, added TEXT);
+        CREATE TABLE IF NOT EXISTS downloads (id INTEGER PRIMARY KEY, video INTEGER REFERENCES videos, provider TEXT, sub_id TEXT, language TEXT, score INTEGER, downloaded TEXT);
+        CREATE INDEX IF NOT EXISTS ix_videos_path ON videos(path);
+        CREATE INDEX IF NOT EXISTS fk_downloaded_videos ON downloads(video);
     """
 
     def __init__(self, db_path):
-        needs_init = False
-        if not os.path.isfile(db_path):
-            needs_init = True;
         self._conn = sqlite3.connect(db_path)
         self._conn.execute("PRAGMA foreign_keys = ON")
-        if needs_init:
-            self._init_db()
+        self._init_db()
         self._conn.row_factory = sqlite3.Row
 
     def _init_db(self):
