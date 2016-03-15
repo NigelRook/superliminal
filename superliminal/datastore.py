@@ -3,6 +3,8 @@ import sqlite3
 from subliminal.video import Video, Movie, Episode
 import json
 import logging
+from babelfish import Language
+from itertools import groupby
 
 logger = logging.getLogger(__name__)
 
@@ -82,21 +84,27 @@ class SqLiteDataStore:
         self._conn.execute("INSERT INTO videos (path, data, type, added) VALUES (?, ?, ?, datetime('now'))", (path, data, type))
         self._conn.commit()
 
-    def add_download(self, path, subtitle, language, score):
-        logger.debug("add_download(%s, %s, %s, %d)", path, subtitle, language, score)
+    def add_download(self, path, provider, sub_id, language, score):
+        logger.debug("add_download(%s, %s, %s, %s, %d)", path, provider, sub_id, language, score)
         video_id = self._get_video_id_from_path(path)
         self._conn.execute("INSERT INTO downloads (video, provider, sub_id, language, score, downloaded) VALUES (?, ?, ?, ?, ?, datetime('now'))",
-                           (video_id, subtitle.provider_name, subtitle.id, language, score))
+                           (video_id, provider, sub_id, str(language), score))
         self._conn.commit()
 
     def get_downloads_for_video(self, path):
-        logger.debug("get_downloads_for_video()%s)", path)
+        logger.debug("get_downloads_for_video(%s)", path)
         video_id = self._get_video_id_from_path(path)
         c = self._conn.cursor()
-        c.execute("SELECT provider, sub_id, language, score FROM downloads WHERE video = ?", (video_id,))
+        c.execute("SELECT provider, sub_id, language, score FROM downloads WHERE video = ? ORDER BY language, score DESC", (video_id,))
         results = c.fetchall()
+        extracted = (self._convert_subtitle_row(row) for row in results)
+        by_lang = dict((lang, list(subs)) for lang, subs in groupby(extracted, lambda sub: sub['lang']))
         logger.debug("got %d downloads", len(results))
-        return results
+        return by_lang
+
+    @staticmethod
+    def _convert_subtitle_row(row):
+        return {'provider': row['provider'], 'sub_id': row['sub_id'], 'lang': row['language'], 'score': row['score']}
 
     def _get_video_id_from_path(self, path):
         logger.debug("_get_video_id_from_path(%s)", path)
