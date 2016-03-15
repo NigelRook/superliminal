@@ -59,3 +59,17 @@ def test_added_subs_are_returned_by_lang(fixture):
     assert downloads == {lang1: [{'provider': provider1, 'sub_id': sub_id1, 'lang': lang1, 'score': score1},
                                  {'provider': provider2, 'sub_id': sub_id2, 'lang': lang2, 'score': score2}],
                          lang3: [{'provider': provider3, 'sub_id': sub_id3, 'lang': lang3, 'score': score3}]}
+
+def test_replacing_video_for_path_removes_downloads(fixture):
+    datastore = superliminal.datastore.SqLiteDataStore(fixture.db_path)
+    path = "/data/Series/Season 1/01 Title.mkv"
+    video = Video.fromname("Series.S01E02.Title.720p.WEB-DL.DD5.1.H264-ReleaseGroup.mkv")
+    datastore.add_video(path, video)
+    provider = "davessubs"; sub_id = "ABC123"; lang = Language.fromietf('en'); score = 123
+    datastore.add_download(path, provider, sub_id, lang, score)
+
+    video2 = Video.fromname("Series.S01E02.Title.720p.BDRip-ReleaseGroup2.mkv")
+    datastore.add_video(path, video)
+    downloads = datastore.get_downloads_for_video(path)
+
+    assert downloads == {}
