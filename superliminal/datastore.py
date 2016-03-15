@@ -116,24 +116,36 @@ class SqLiteDataStore:
         logger.debug("found video id %d", video['id'])
         return video['id']
 
-    def get_incomplete_videos(self, language, desired_movie_score, desired_episode_score, ignore_older_than):
-        logger.debug("get_incomplete_videos(%s, %d, %d, %s)", language, desired_movie_score, desired_episode_score, ignore_older_than)
-        c = self._conn.cursor()
-        c.execute("""
-            SELECT videos.path, videos.data, videos.type, MAX(downloads.score) AS score
-            FROM videos
-            LEFT JOIN downloads ON videos.id = downloads.video
-            WHERE videos.added >= ?
-            AND downloads.language = ?
-            AND (
-                downloads.score IS NULL
-                OR (videos.type = ? AND downloads.score < ?)
-                OR (videos.type = ? AND downloads.score < ?)
-            )
-            GROUP BY videos.id, downloads.language
-        """, (ignore_older_than, language, Serializer._MOVIE_TYPE_IDENTIFIER, desired_movie_score, Serializer._EPISODE_TYPE_IDENTIFIER, desired_episode_score))
-        results = c.fetchall()
-        results = [(row['path'], Serializer.deserialize_video(row['type'], row['data']), row['score'] or 0) for row in results]
+    def get_incomplete_videos(self, languages, desired_movie_score, desired_episode_score, ignore_older_than):
+        logger.debug("get_incomplete_videos(%s, %d, %d, %s)", languages, desired_movie_score, desired_episode_score, ignore_older_than)
+        incomplete = []
+        for language in languages:
+            c = self._conn.cursor()
+            c.execute("""
+                SELECT videos.path, videos.data, videos.type, MAX(downloads.score) AS score
+                FROM videos
+                LEFT JOIN downloads ON videos.id = downloads.video
+                WHERE videos.added >= ?
+                AND downloads.language = ?
+                AND (
+                    downloads.score IS NULL
+                    OR (videos.type = ? AND downloads.score < ?)
+                    OR (videos.type = ? AND downloads.score < ?)
+                )
+                GROUP BY videos.id, downloads.language
+            """, (ignore_older_than, str(language), Serializer._MOVIE_TYPE_IDENTIFIER, desired_movie_score, Serializer._EPISODE_TYPE_IDENTIFIER, desired_episode_score))
+            results = c.fetchall()
+            for row in results:
+                incomplete.append((row['path'], Serializer.deserialize_video(row['type'], row['data']), language, row['score'] or 0))
+
+        keyfunc = lambda (path, video, lang, score): path
+        grouped = groupby(sorted(incomplete, key=keyfunc), key=keyfunc)
+        results = []
+        for path, stuff in grouped:
+            needs = [{'lang':lang, 'current_score':score} for (path, video, lang, score) in stuff]
+            _1, video, _2, _3 = stuff[0]
+            results.append({'path':path, 'video':video, 'needs':needs})
+
         logger.debug("found %d incomplete videos: %s", len(results), results)
         return results
 

@@ -2,6 +2,7 @@ import pytest
 import tempfile
 from subliminal.video import Video
 from babelfish import Language
+from datetime import datetime, timedelta
 
 import superliminal.datastore
 
@@ -73,3 +74,11 @@ def test_replacing_video_for_path_removes_downloads(fixture):
     downloads = datastore.get_downloads_for_video(path)
 
     assert downloads == {}
+
+def test_get_incomplete_videos_returns_nothing_when_no_videos_exist(fixture):
+    datastore = superliminal.datastore.SqLiteDataStore(fixture.db_path)
+
+    lang = Language.fromietf('en')
+    incomplete = datastore.get_incomplete_videos([lang], 100, 100, datetime.utcnow()- timedelta(days=1))
+
+    assert incomplete == []
