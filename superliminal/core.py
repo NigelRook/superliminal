@@ -88,11 +88,11 @@ class SuperliminalCore:
     def check_for_better(self):
         logger.debug("check_for_better()")
         ignore_older_than = datetime.utcnow() - timedelta(days=self._settings.search_for_days)
-        for lang in self._settings.languages:
-            incomplete_videos = self._datastore.get_incomplete_videos(
-                str(lang), self._settings.desired_movie_score, self._settings.desired_episode_score, ignore_older_than)
-            for path, video, current_score in incomplete_videos:
-                self._download_best_subtitles(path, video, lang, current_score + 1)
+        incomplete_videos = self._datastore.get_incomplete_videos(
+            self._settings.languages, self._settings.desired_movie_score, self._settings.desired_episode_score, ignore_older_than)
+        for video in incomplete_videos:
+            for need in video['needs']:
+                self._download_best_subtitles(video['path'], video['video'], need['lang'], need['current_score'] + 1)
 
 class CoreFactory:
     def __init__(self, settings, db_path):

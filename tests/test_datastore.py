@@ -81,4 +81,79 @@ def test_get_incomplete_videos_returns_nothing_when_no_videos_exist(fixture):
     lang = Language.fromietf('en')
     incomplete = datastore.get_incomplete_videos([lang], 100, 100, datetime.utcnow()- timedelta(days=1))
 
-    assert incomplete == []
+get_incomplete_videos_scenarios = [
+    {'name':'no videos returns empty',
+     'videos':[],
+     'expected':[]},
+    {'name':'video with no downloads returns all languages',
+     'videos':[{'path':"/data/Series/Season 1/02 Title.mkv",
+                'name':"Series.S01E02.Title.720p.WEB-DL.DD5.1.H264-ReleaseGroup.mkv",
+                'downloads':[]}],
+     'expected':[(0, [('en', 0), ('pt-BR', 0)])]},
+    {'name':'excludes languages with downloads >= desired',
+     'videos':[{'path':"/data/Series/Season 1/02 Title.mkv",
+                'name':"Series.S01E02.Title.720p.WEB-DL.DD5.1.H264-ReleaseGroup.mkv",
+                'downloads':[('davesubs', 'ds123', 'en', 100)]}],
+     'expected':[(0, [('pt-BR', 0)])]},
+    {'name':'excludes video when all languages have downloads >= desired',
+     'videos':[{'path':"/data/Series/Season 1/02 Title.mkv",
+                'name':"Series.S01E02.Title.720p.WEB-DL.DD5.1.H264-ReleaseGroup.mkv",
+                'downloads':[('davesubs', 'ds123', 'en', 100),
+                             ('pablosubs', 'ps16', 'pt-BR', 123)]}],
+     'expected':[]},
+    {'name':'includes languages with downloads < desired',
+     'videos':[{'path':"/data/Series/Season 1/02 Title.mkv",
+                'name':"Series.S01E02.Title.720p.WEB-DL.DD5.1.H264-ReleaseGroup.mkv",
+                'downloads':[('davesubs', 'ds123', 'en', 100),
+                             ('pablosubs', 'ps16', 'pt-BR', 80)]}],
+     'expected':[(0, [('pt-BR', 80)])]},
+    {'name':'returns highest score for language when multiple downloads found',
+     'videos':[{'path':"/data/Series/Season 1/02 Title.mkv",
+                'name':"Series.S01E02.Title.720p.WEB-DL.DD5.1.H264-ReleaseGroup.mkv",
+                'downloads':[('davesubs', 'ds123', 'en', 100),
+                             ('pablosubs', 'ps16', 'pt-BR', 83),
+                             ('pablosubs', 'ps22', 'pt-BR', 80)]}],
+     'expected':[(0, [('pt-BR', 83)])]},
+    {'name':'excludes language if any score >= desired',
+     'videos':[{'path':"/data/Series/Season 1/02 Title.mkv",
+                'name':"Series.S01E02.Title.720p.WEB-DL.DD5.1.H264-ReleaseGroup.mkv",
+                'downloads':[('davesubs', 'ds123', 'en', 100),
+                             ('stevesubs', 'steve69', 'en', 83),
+                             ('pablosubs', 'ps22', 'pt-BR', 80)]}],
+     'expected':[(0, [('pt-BR', 80)])]},
+    {'name':'uses different desired score for movies',
+     'videos':[{'path':"/data/Title (2016)/Title.mkv",
+                'name':"Title.2016.720p.WEB-DL.DD5.1.H264-ReleaseGroup.mkv",
+                'downloads':[('davesubs', 'ds123', 'en', 80),
+                             ('pablosubs', 'ps16', 'pt-BR', 79)]}],
+     'expected':[(0, [('pt-BR', 79)])]},
+    {'name':'returns multiple videos',
+     'videos':[{'path':"/data/Series/Season 1/02 Title.mkv",
+                'name':"Series.S01E02.Title.720p.WEB-DL.DD5.1.H264-ReleaseGroup.mkv",
+                'downloads':[('pablosubs', 'ps16', 'pt-BR', 80)]},
+               {'path':"/data/Series/Season 1/03 Title.mkv",
+                'name':"Series.S01E03.Title.720p.WEB-DL.DD5.1.H264-ReleaseGroup.mkv",
+                'downloads':[('davesubs', 'ds123', 'en', 100)]}],
+     'expected':[(0, [('en', 0), ('pt-BR', 80)]),
+                 (1, [('pt-BR', 0)])]}
+]
+
+@pytest.mark.parametrize("scenario", get_incomplete_videos_scenarios, ids=lambda scenario:scenario['name'])
+def test_get_incomplete_videos(fixture, scenario):
+    datastore = superliminal.datastore.SqLiteDataStore(fixture.db_path)
+    for video in scenario['videos']:
+        datastore.add_video(video['path'], Video.fromname(video['name']))
+        for provider, sub_id, lang, score in video['downloads']:
+            datastore.add_download(video['path'], provider, sub_id, Language.fromietf(lang), score)
+
+    lang1 = Language.fromietf('en'); lang2 = Language.fromietf('pt-BR')
+    incomplete = datastore.get_incomplete_videos([lang1, lang2], 80, 100, datetime.utcnow() - timedelta(days=1))
+
+    assert len(incomplete) == len(scenario['expected'])
+    for video_idx, needs in scenario['expected']:
+        actual = next(video for video in incomplete if video['path'] == scenario['videos'][video_idx]['path'])
+        assert actual['video'].name == scenario['videos'][video_idx]['name']
+        assert len(actual['needs']) == len(needs)
+        for lang, score in needs:
+            actual_need = next(need for need in actual['needs'] if str(need['lang']) == lang)
+            assert actual_need['current_score'] == score

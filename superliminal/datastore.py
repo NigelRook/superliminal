@@ -124,16 +124,15 @@ class SqLiteDataStore:
             c.execute("""
                 SELECT videos.path, videos.data, videos.type, MAX(downloads.score) AS score
                 FROM videos
-                LEFT JOIN downloads ON videos.id = downloads.video
+                LEFT JOIN downloads ON videos.id = downloads.video AND downloads.language = ?
                 WHERE videos.added >= ?
-                AND downloads.language = ?
-                AND (
-                    downloads.score IS NULL
-                    OR (videos.type = ? AND downloads.score < ?)
-                    OR (videos.type = ? AND downloads.score < ?)
-                )
                 GROUP BY videos.id, downloads.language
-            """, (ignore_older_than, str(language), Serializer._MOVIE_TYPE_IDENTIFIER, desired_movie_score, Serializer._EPISODE_TYPE_IDENTIFIER, desired_episode_score))
+                HAVING (
+                    score IS NULL
+                    OR (videos.type = ? AND score < ?)
+                    OR (videos.type = ? AND score < ?)
+                )
+            """, (str(language), ignore_older_than, Serializer._MOVIE_TYPE_IDENTIFIER, desired_movie_score, Serializer._EPISODE_TYPE_IDENTIFIER, desired_episode_score))
             results = c.fetchall()
             for row in results:
                 incomplete.append((row['path'], Serializer.deserialize_video(row['type'], row['data']), language, row['score'] or 0))
@@ -142,8 +141,9 @@ class SqLiteDataStore:
         grouped = groupby(sorted(incomplete, key=keyfunc), key=keyfunc)
         results = []
         for path, stuff in grouped:
+            stuff = list(stuff)
             needs = [{'lang':lang, 'current_score':score} for (path, video, lang, score) in stuff]
-            _1, video, _2, _3 = stuff[0]
+            stuff[0][1]
             results.append({'path':path, 'video':video, 'needs':needs})
 
         logger.debug("found %d incomplete videos: %s", len(results), results)
