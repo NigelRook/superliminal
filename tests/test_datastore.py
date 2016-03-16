@@ -135,14 +135,29 @@ get_incomplete_videos_scenarios = [
                 'name':"Series.S01E03.Title.720p.WEB-DL.DD5.1.H264-ReleaseGroup.mkv",
                 'downloads':[('davesubs', 'ds123', 'en', 100)]}],
      'expected':[(0, [('en', 0), ('pt-BR', 80)]),
-                 (1, [('pt-BR', 0)])]}
+                 (1, [('pt-BR', 0)])]},
+    {'name':'returns multiple videos',
+     'videos':[{'path':"/data/Series/Season 1/02 Title.mkv",
+                'name':"Series.S01E02.Title.720p.WEB-DL.DD5.1.H264-ReleaseGroup.mkv",
+                'downloads':[],
+                'age':timedelta(days=2)},
+               {'path':"/data/Series/Season 1/03 Title.mkv",
+                'name':"Series.S01E03.Title.720p.WEB-DL.DD5.1.H264-ReleaseGroup.mkv",
+                'downloads':[('davesubs', 'ds123', 'en', 80)],
+                'age':timedelta(days=2)},
+               {'path':"/data/Series/Season 1/03 Title.mkv",
+                'name':"Series.S01E03.Title.720p.WEB-DL.DD5.1.H264-ReleaseGroup.mkv",
+                'downloads':[],
+                'age':timedelta(hours=23)}],
+     'expected':[(2, [('en', 0), ('pt-BR', 0)])]}
 ]
 
 @pytest.mark.parametrize("scenario", get_incomplete_videos_scenarios, ids=lambda scenario:scenario['name'])
 def test_get_incomplete_videos(fixture, scenario):
     datastore = superliminal.datastore.SqLiteDataStore(fixture.db_path)
     for video in scenario['videos']:
-        datastore.add_video(video['path'], Video.fromname(video['name']))
+        added = datetime.utcnow() - video['age'] if 'age' in video else timedelta(0)
+        datastore.add_video(video['path'], Video.fromname(video['name']), added)
         for provider, sub_id, lang, score in video['downloads']:
             datastore.add_download(video['path'], provider, sub_id, Language.fromietf(lang), score)
 

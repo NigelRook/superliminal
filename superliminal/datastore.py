@@ -5,6 +5,7 @@ import json
 import logging
 from babelfish import Language
 from itertools import groupby
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -77,11 +78,12 @@ class SqLiteDataStore:
         self._conn.executescript(self._init_sql)
         self._conn.commit()
 
-    def add_video(self, path, video):
-        logger.debug("add_video(%s, %s)", path, video)
+    def add_video(self, path, video, added=None):
+        logger.debug("add_video(%s, %s, %s)", path, video, added)
+        added = added or datetime.utcnow()
         data, type = Serializer.serialize_video(video)
         self._conn.execute("DELETE FROM videos WHERE path = ?", (path,))
-        self._conn.execute("INSERT INTO videos (path, data, type, added) VALUES (?, ?, ?, datetime('now'))", (path, data, type))
+        self._conn.execute("INSERT INTO videos (path, data, type, added) VALUES (?, ?, ?, ?)", (path, data, type, str(added)))
         self._conn.commit()
 
     def add_download(self, path, provider, sub_id, language, score):
