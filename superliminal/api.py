@@ -1,9 +1,7 @@
 import logging
 import os.path
 from tornado.web import RequestHandler, Application
-from tornado.ioloop import IOLoop
 from tornado.escape import json_decode, url_escape
-from tornado.httpserver import HTTPServer
 from tornado.httpclient import HTTPClient, HTTPRequest
 from tornado.httputil import parse_body_arguments
 
@@ -95,19 +93,10 @@ class SonarrHandler(RequestHandler):
                 self._core.add_video(path, name)
 
 def create_application(core_provider):
-    init_params = { 'core_factory': core_factory }
+    init_params = { 'core_factory': core_provider }
     routes = [
         ('/add', AddHandler, init_params),
         ('/add/couchpotato', CouchPotatoHandler, init_params),
         ('/add/sonarr', SonarrHandler, init_params)
     ]
     return Application(routes)
-
-def run(core_factory):
-    application = create_application(core_factory)
-    http_server = HTTPServer(application)
-    http_server.listen(5000)
-    try:
-        IOLoop.current().start()
-    finally:
-        http_server.stop()
