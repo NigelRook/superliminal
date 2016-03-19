@@ -94,14 +94,17 @@ class SonarrHandler(RequestHandler):
                 logger.info("ADD (sonarr): %s -> %s", path, name)
                 self._core.add_video(path, name)
 
-def run(core_factory):
+def create_application(core_provider):
     init_params = { 'core_factory': core_factory }
     routes = [
         ('/add', AddHandler, init_params),
         ('/add/couchpotato', CouchPotatoHandler, init_params),
         ('/add/sonarr', SonarrHandler, init_params)
     ]
-    application = Application(routes)
+    return Application(routes)
+
+def run(core_factory):
+    application = create_application(core_factory)
     http_server = HTTPServer(application)
     http_server.listen(5000)
     try:
