@@ -3,42 +3,15 @@ import sys
 import logging
 from datetime import timedelta
 from argparse import ArgumentParser
-
 from tornado.ioloop import IOLoop
 from tornado.httpserver import HTTPServer
 
 from .checker import Checker
 from .settings import Settings
-from .core import CoreFactory
-from . import api
+from .core import SuperliminalCore
+from . import api, env
 
 logger = logging.getLogger(__name__)
-
-def get_data_dir():
-    # Windows
-    if os.name == 'nt':
-        return os.path.join(os.environ['APPDATA'], 'Superliminal')
-
-    try:
-        import pwd
-        if not os.environ['HOME']:
-            os.environ['HOME'] = sp(pwd.getpwuid(os.geteuid()).pw_dir)
-    except:
-        pass
-
-    user_dir = os.path.expanduser('~')
-
-    # OSX
-    import platform
-    if 'darwin' in platform.platform().lower():
-        return os.path.join(user_dir, 'Library', 'Application Support', 'Superliminal')
-
-    # FreeBSD
-    if 'freebsd' in sys.platform:
-        return os.path.join('/usr/local/', 'superliminal', 'data')
-
-    # Linux
-    return os.path.join(user_dir, '.superliminal')
 
 def get_opts(args):
     parser = ArgumentParser(prog = 'superliminalpy')
@@ -49,17 +22,9 @@ def get_opts(args):
     parser.add_argument('--debug', action = 'store_true',
                         dest = 'debug', help = 'Debug mode')
 
-    opts = parser.parse_args(args)
+    return parser.parse_args(args)
 
-    if not opts.data_dir:
-        opts.data_dir = get_data_dir()
-
-    if not opts.config_file:
-        opts.config_file = os.path.join(opts.data_dir, 'superliminal.cfg')
-
-    return opts
-
-def init_logging(filename, level):
+def init_logging(level):
     logger = logging.getLogger()
     formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     logger.setLevel(level)
@@ -68,7 +33,7 @@ def init_logging(filename, level):
     ch.setFormatter(formatter)
     logger.addHandler(ch)
 
-    fh = logging.handlers.TimedRotatingFileHandler(filename=filename, when='W0', interval=1, backupCount=5)
+    fh = logging.handlers.TimedRotatingFileHandler(filename=env.paths.log_file, when='W0', interval=1, backupCount=5)
     fh.setFormatter(formatter)
     logger.addHandler(fh)
 
@@ -76,8 +41,8 @@ def init_logging(filename, level):
     for logger_name in ['guessit', 'subliminal', 'tornado', 'stevedore']:
         logging.getLogger(logger_name).setLevel(logging.INFO)
 
-def run_server(core_factory):
-    application = api.create_application(core_factory)
+def run_server():
+    application = api.create_application()
     http_server = HTTPServer(application)
     http_server.listen(5000)
     try:
@@ -88,43 +53,33 @@ def run_server(core_factory):
 def run(args):
     opts = get_opts(args)
 
-    if not os.path.isdir(opts.data_dir):
-        os.makedirs(opts.data_dir)
+    env.load(data_dir = opts.data_dir, config_file = opts.config_file)
 
-    logs_dir = os.path.join(opts.data_dir, 'logs/')
-    if not os.path.isdir(logs_dir):
-        os.makedirs(logs_dir)
+    if not os.path.isdir(env.paths.data_dir):
+        os.makedirs(env.paths.data_dir)
 
-    logfile = os.path.join(logs_dir, 'superliminal.log')
+    if not os.path.isdir(env.paths.logs_dir):
+        os.makedirs(env.paths.logs_dir)
 
-    init_logging(logfile, logging.DEBUG)
+    init_logging(logging.DEBUG)
 
     logger.info("Starting up...")
 
-    db_path = os.path.join(opts.data_dir, 'superliminal.db')
-    subliminal_cache_path = os.path.join(opts.data_dir, 'subliminal.dbm')
-
-    logger.info("Loading settings from '%s'", opts.config_file)
-    settings = Settings(opts.config_file)
-
-    logger.info("subliminal cache at '%s'", subliminal_cache_path)
+    logger.info("subliminal cache at '%s'", env.paths.cache_file)
     from subliminal.cache import region
     region.configure('dogpile.cache.dbm', expiration_time=timedelta(days=30),
-                     arguments={'filename': subliminal_cache_path})
-
-    logger.info("Db at '%s'", db_path)
-    core_factory = CoreFactory(settings, db_path)
+                     arguments={'filename': env.paths.cache_file})
 
     logger.info("Running startup check for better subs...")
-    with core_factory.get() as c:
+    with SuperliminalCore() as c:
         c.check_for_better()
 
     logger.info("Starting periodic better subs checking thread...")
-    checker = Checker(settings, core_factory)
+    checker = Checker()
     checker.start()
 
     try:
-        run_server(core_factory)
+        run_server()
     except KeyboardInterrupt:
         logger.info("Shutting down...")
         pass

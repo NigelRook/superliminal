@@ -3,27 +3,21 @@ import datastore
 import subliminal
 import os
 import io
-import settings
 from babelfish import Language
 from datetime import datetime, timedelta
+
+from . import env
 
 logger = logging.getLogger(__name__)
 
 class SuperliminalCore:
-    def __init__(self, settings, db_path):
-        self._settings = settings
-        self._db_path = db_path
-
-    @property
-    def settings(self):
-	return self._settings
-
     def __enter__(self):
         logger.debug("Connecting to providers")
         self._provider_pool = subliminal.api.ProviderPool(
-            providers=self._settings.providers, provider_configs=self._settings.provider_configs)
+            providers=env.settings.providers, provider_configs=env.settings.provider_configs)
+
         logger.debug("Connecting to data store")
-        self._datastore = datastore.SqLiteDataStore(self._db_path)
+        self._datastore = datastore.SqLiteDataStore(env.paths.db_path)
         return self
 
     def __exit__(self, type, value, traceback):
@@ -44,7 +38,7 @@ class SuperliminalCore:
         }
         logger.debug("video=%s", v.__dict__)
         self._datastore.add_video(path, v)
-        for lang in self._settings.languages:
+        for lang in env.settings.languages:
             self._download_best_subtitles(path, v, lang, self._get_min_score(v))
 
     @staticmethod
@@ -67,9 +61,9 @@ class SuperliminalCore:
 
     def _get_min_score(self, video):
         if isinstance(video, subliminal.video.Episode):
-            return self._settings.min_episode_score
+            return env.settings.min_episode_score
         else:
-            return self._settings.min_movie_score
+            return env.settings.min_movie_score
 
     def _download_best_subtitles(self, path, video, lang, min_score):
         logger.debug("_download_best_subtitles(%s, %s, %s, %d)", path, video, lang, min_score)
@@ -87,17 +81,9 @@ class SuperliminalCore:
 
     def check_for_better(self):
         logger.debug("check_for_better()")
-        ignore_older_than = datetime.utcnow() - timedelta(days=self._settings.search_for_days)
+        ignore_older_than = datetime.utcnow() - timedelta(days=env.settings.search_for_days)
         incomplete_videos = self._datastore.get_incomplete_videos(
-            self._settings.languages, self._settings.desired_movie_score, self._settings.desired_episode_score, ignore_older_than)
+            env.settings.languages, env.settings.desired_movie_score, env.settings.desired_episode_score, ignore_older_than)
         for video in incomplete_videos:
             for need in video['needs']:
                 self._download_best_subtitles(video['path'], video['video'], need['lang'], need['current_score'] + 1)
-
-class CoreFactory:
-    def __init__(self, settings, db_path):
-        self._settings = settings
-        self._db_path = db_path
-
-    def get(self):
-        return SuperliminalCore(self._settings, self._db_path)
