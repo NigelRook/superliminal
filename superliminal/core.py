@@ -1,12 +1,11 @@
 import logging
-import datastore
 import subliminal
 import os
 import io
 from babelfish import Language
 from datetime import datetime, timedelta
 
-from . import env
+from . import env, datastore
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +68,7 @@ class SuperliminalCore:
         logger.debug("_download_best_subtitles(%s, %s, %s, %d)", path, video, lang, min_score)
         subs = self._provider_pool.list_subtitles(video, {lang})
         all_downloaded = self._datastore.get_downloads_for_video(path)
-        downloaded = all_downloaded[lang] if lang in downloaded else []
+        downloaded = all_downloaded[lang] if lang in all_downloaded else []
         sub, score = self._find_best_sub(path, video, lang, subs, downloaded)
         if score < min_score:
             return

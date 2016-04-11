@@ -2,8 +2,11 @@ import logging
 import os.path
 from tornado.web import RequestHandler, Application
 from tornado.escape import json_decode, url_escape
-from tornado.httpclient import HTTPClient, HTTPRequest
+from tornado.httpclient import HTTPRequest, AsyncHTTPClient
 from tornado.httputil import parse_body_arguments
+from tornado import gen
+from . import env
+from .core import SuperliminalCore
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +21,7 @@ class AddHandler(RequestHandler):
 
 
 class CouchPotatoHandler(RequestHandler):
+    @gen.coroutine
     def post(self):
         if ((not 'imdb_id' in self.request.body_arguments) or
             (not self.request.body_arguments['message'][0].startswith('Downloaded'))):
@@ -30,14 +34,14 @@ class CouchPotatoHandler(RequestHandler):
         logger.debug(self.request.body_arguments['imdb_id'])
         id = self.request.body_arguments['imdb_id'][0]
 
-        http_client = HTTPClient()
+        http_client = AsyncHTTPClient()
         request = HTTPRequest(
             method='GET',
             url='%s/api/%s/media.get?id=%s' %
                 (env.settings.couchpotato_url,
                  env.settings.couchpotato_api_key,
                  url_escape(id)))
-        response = http_client.fetch(request)
+        response = yield http_client.fetch(request)
         movie_data = json_decode(response.body)
         release = next((release for release in movie_data['media']['releases'] if release['status'] == 'downloaded'))
         logger.debug('release: %s', release)
@@ -50,6 +54,7 @@ class CouchPotatoHandler(RequestHandler):
 
 
 class SonarrHandler(RequestHandler):
+    @gen.coroutine
     def post(self):
         data = json_decode(self.request.body)
         logger.debug('Sonarr download: %s', data)
@@ -57,7 +62,7 @@ class SonarrHandler(RequestHandler):
         if event_type in ['Test', 'Rename']:
             return
 
-        http_client = HTTPClient()
+        http_client = AsyncHTTPClient()
         with SuperliminalCore() as core:
             for episode in data['Episodes']:
                 id = episode['Id']
@@ -66,7 +71,7 @@ class SonarrHandler(RequestHandler):
                 request = HTTPRequest(
                     method='GET', headers=headers,
                     url='%s/api/Episode/%d' % (env.settings.sonarr_url, id))
-                response = http_client.fetch(request)
+                response = yield http_client.fetch(request)
                 episode_data = json_decode(response.body)
                 logger.debug('Sonarr episode data: %s', episode_data)
 
@@ -74,7 +79,7 @@ class SonarrHandler(RequestHandler):
                 request = HTTPRequest(
                     method='GET', headers=headers,
                     url='%s/api/EpisodeFile/%d' % (env.settings.sonarr_url, file_id))
-                response = http_client.fetch(request)
+                response = yield http_client.fetch(request)
                 file_data = json_decode(response.body)
                 logger.debug('Sonarr file data: %s', file_data)
 
