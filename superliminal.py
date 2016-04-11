@@ -1,9 +1,8 @@
 #!/usr/bin/env python
-import os
-import sys
+import os, sys, site
 
 base_path = os.path.dirname(os.path.realpath(__file__))
-sys.path.insert(0, os.path.join(base_path, 'libs'))
+site.addsitedir(os.path.join(base_path, 'libs'))
 
 import superliminal.app
 
