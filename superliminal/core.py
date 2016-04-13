@@ -42,7 +42,7 @@ class SuperliminalCore:
 
     @staticmethod
     def _download_matches_sub(download, sub, language):
-        return download['provider'] == sub.provider_name and download['sub_id'] == sub.id and download['language'] == str(language)
+        return download['provider'] == sub.provider_name and download['sub_id'] == sub.id and download['lang'] == str(language)
 
     @staticmethod
     def _compute_score(matches, scores):
