@@ -60,18 +60,16 @@ class IntegrationTests(AsyncHTTPTestCase):
         self.db_filename = self.db_file.name
         self.settings_filename = self.settings_file.name
         self.video_filename = self.video_file.name
-        self.create_services()
         paths = FakePaths(db_path=self.db_filename)
         superliminal.env.paths = paths
-        settings = self.get_settings()
-        settings['providers'] = ['fakesub']
-        settings['provider_configs'] = {
-            'fakesub': {
-                'languages': [Language.fromietf('en')],
-                'subs': self.get_subtitles()
-            }
-        }
-        fakesettings = FakeSettings(**settings)
+        fakesettings = FakeSettings(
+            providers=['fakesub'],
+            provider_configs={
+                'fakesub': {
+                    'languages': [Language.fromietf('en')],
+                    'subs': []
+                }
+            }),
         superliminal.env.settings = fakesettings
         self.patchers = []
         self.patchers.append(patch('subliminal.api.ProviderPool', wraps=FakeProviderPool))
@@ -85,14 +83,8 @@ class IntegrationTests(AsyncHTTPTestCase):
     def get_app(self):
         return create_application()
 
-    def create_services(self):
-        pass
-
-    def get_subtitles(self):
-        return []
-
-    def get_settings(self):
-        return {}
+    def set_subtitles(self, subtitles):
+        superliminal.env.settings['provider_configs']['fakesub']['subs'] = subtitles
 
     def get_video_size(self):
         return 876543210;
@@ -110,21 +102,19 @@ class IntegrationTests(AsyncHTTPTestCase):
         self.video_file.close()
 
 class CouchPotatoTests(IntegrationTests):
-    def create_services(self):
+    def __init__(self):
+        super(CouchPotatoTests, self).__init__()
         self.cp = fakecouchpotato.FakeCouchPotato(self.video_filename)
-
-    def get_subtitles(self):
-        return [{
+        self.set_subtitles([{
             'id': 'theonlysub',
             'language': Language.fromietf('en'),
             'title': fakecouchpotato.MOVIE_TITLE,
             'year': fakecouchpotato.MOVIE_YEAR,
             'release_group': fakecouchpotato.MOVIE_RELEASE_GROUP,
             'content': SUBTITLE_CONTENT
-        }]
-
-    def get_settings(self):
-        return {'couchpotato_url': self.cp.url, 'couchpotato_api_key': fakecouchpotato.API_KEY}
+        }])
+        env.settings.couchpotato_url = self.cp.url
+        env.settings.couchpotato_api_key = fakecouchpotato.API_KEY
 
     @gen_test
     def test_couchpotato_add(self):
@@ -137,11 +127,10 @@ class CouchPotatoTests(IntegrationTests):
         super(CouchPotatoTests, self).tearDown()
 
 class SonarrTests(IntegrationTests):
-    def create_services(self):
+    def __init__(self):
+        super(SonarrTests, self).__init__()
         self.sonarr = fakesonarr.FakeSonarr(self.video_filename)
-
-    def get_subtitles(self):
-        return [{
+        self.set_subtitles([{
             'id': 'theonlysub',
             'language': Language.fromietf('en'),
             'series': fakesonarr.SERIES_TITLE,
@@ -150,10 +139,9 @@ class SonarrTests(IntegrationTests):
             'title': fakesonarr.EPISODE_TITLE,
             'release_group': fakesonarr.EPISODE_FILE_RELEASE_GROUP,
             'content': SUBTITLE_CONTENT
-        }]
-
-    def get_settings(self):
-        return {'sonarr_url': self.sonarr.url, 'sonarr_api_key': fakesonarr.API_KEY}
+        }])
+        env.settings.sonarr_url = self.sonarr.url
+        env.settings.sonarr_api_key = fakesonarr.API_KEY
 
     def get_video_size(self):
         return fakesonarr.EPISODE_FILE_SIZE
