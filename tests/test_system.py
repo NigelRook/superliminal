@@ -54,9 +54,6 @@ class FakePaths(object):
 
 class IntegrationTests(AsyncHTTPTestCase):
     def setUp(self):
-        logger = logging.getLogger()
-        logger.level = logging.DEBUG
-        logger.addHandler(logging.StreamHandler(sys.stdout))
         super(IntegrationTests, self).setUp()
         self.db_file = tempfile.NamedTemporaryFile()
         self.settings_file = tempfile.NamedTemporaryFile()
