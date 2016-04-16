@@ -17,7 +17,7 @@ class AddHandler(RequestHandler):
         name = data['name'] if 'name' in data else data['path']
         logger.info("ADD: %s -> %s", path, name)
         with SuperliminalCore() as core:
-            self._core.add_video(path, name)
+            core.add_video(path, name)
 
 
 class CouchPotatoHandler(RequestHandler):
