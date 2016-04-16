@@ -10,10 +10,10 @@ from superliminal.settings import Settings
 from superliminal.api import create_application
 import superliminal.env
 import tornado.web
-import tornado.httpserver
-import tornado.httpclient
+from tornado.httpclient import HTTPRequest
 from tornado.testing import AsyncHTTPTestCase, gen_test
 from mock import patch
+import json
 
 import fakecouchpotato, fakesonarr
 
@@ -22,6 +22,10 @@ NAPIPROJEKT_HASH = '222222'
 THESUBDB_HASH = '333333'
 SUBTITLE_CONTENT = '''1
 00:00:01,000 --> 00:00:02,000
+Words that people are saying
+'''
+SUBTITLE_CONTENT_2 = '''1
+00:00:02,000 --> 00:00:03,000
 Words that people are saying
 '''
 
@@ -100,6 +104,159 @@ class IntegrationTests(AsyncHTTPTestCase):
         self.db_file.close()
         self.settings_file.close()
         self.video_file.close()
+
+    def enable_logging(self):
+        logger = logging.getLogger()
+        logger.level = logging.DEBUG
+        logger.addHandler(logging.StreamHandler(sys.stdout))
+
+class AddTests(IntegrationTests):
+    def get_add_request(self, path=None, name=None):
+        url = self.get_url('/add')
+        path = path or self.video_filename
+        body = {'path': path}
+        if name:
+            body['name'] = name
+        return HTTPRequest(url, method='POST',
+            headers={'Content-Type':'application/json'},
+            body=json.dumps(body))
+
+    @gen_test
+    def test_add_tv_show(self):
+        self.set_subtitles([{
+            'id': 'theonlysub',
+            'language': Language.fromietf('en'),
+            'series': "Series Title",
+            'season': 2,
+            'episode': 3,
+            'title': "The Episode",
+            'release_group': "TvRG",
+            'content': SUBTITLE_CONTENT
+        }])
+        request = self.get_add_request(name="Series.Title.S02E03.720p.WEB-DL.H264-TvRG.mkv")
+        response = yield self.http_client.fetch(request)
+        self.assertEqual(200, response.code)
+        self.assert_subtitle_contents_matches()
+
+    @gen_test
+    def test_add_movie(self):
+        self.set_subtitles([{
+            'id': 'theonlysub',
+            'language': Language.fromietf('en'),
+            'title': "Movie Title",
+            'year': 2016,
+            'release_group': "MovieRG",
+            'content': SUBTITLE_CONTENT
+        }])
+        request = self.get_add_request(name="Movie.Title.2016.720p.WEB-DL.H264-MovieRG.mkv")
+        response = yield self.http_client.fetch(request)
+        self.assertEqual(200, response.code)
+        self.assert_subtitle_contents_matches()
+
+    @gen_test
+    def test_gets_best_match(self):
+        self.set_subtitles([{
+            'id': 'matching_sub',
+            'language': Language.fromietf('en'),
+            'series': "Series Title",
+            'season': 2,
+            'episode': 3,
+            'title': "The Episode",
+            'release_group': "TvRG",
+            'resolution': '720p',
+            'content': SUBTITLE_CONTENT
+        },
+        {
+            'id': 'sub_with_wrong_release_group',
+            'language': Language.fromietf('en'),
+            'series': "Series Title",
+            'season': 2,
+            'episode': 3,
+            'title': "The Episode",
+            'release_group': "OtherRG",
+            'resolution': '720p',
+            'content': SUBTITLE_CONTENT_2
+        },
+        {
+            'id': 'sub_with_wrong_resolution',
+            'language': Language.fromietf('en'),
+            'series': "Series Title",
+            'season': 2,
+            'episode': 3,
+            'title': "The Episode",
+            'release_group': "TvRG",
+            'resolution': '1080p',
+            'content': SUBTITLE_CONTENT_2
+        }])
+        request = self.get_add_request(name="Series.Title.S02E03.720p.WEB-DL.H264-TvRG.mkv")
+        response = yield self.http_client.fetch(request)
+        self.assertEqual(200, response.code)
+        self.assert_subtitle_contents_matches()
+
+    @gen_test
+    def test_downloads_new_sub_if_new_video_added_for_existing_path(self):
+        self.set_subtitles([{
+            'id': 'new_sub',
+            'language': Language.fromietf('en'),
+            'series': "Series Title",
+            'season': 2,
+            'episode': 3,
+            'title': "The Episode",
+            'release_group': "TvRG",
+            'resolution': '720p',
+            'content': SUBTITLE_CONTENT
+        },
+        {
+            'id': 'old_sub',
+            'language': Language.fromietf('en'),
+            'series': "Series Title",
+            'season': 2,
+            'episode': 3,
+            'title': "The Episode",
+            'release_group': "OtherRG",
+            'resolution': '720p',
+            'content': SUBTITLE_CONTENT_2
+        }])
+        request = self.get_add_request(name="Series.Title.S02E03.720p.WEB-DL.H264-OtherRG.mkv")
+        response = yield self.http_client.fetch(request)
+        self.assertEqual(200, response.code)
+        self.assert_subtitle_contents_matches(SUBTITLE_CONTENT_2)
+        request = self.get_add_request(name="Series.Title.S02E03.720p.WEB-DL.H264-TvRG.mkv")
+        response = yield self.http_client.fetch(request)
+        self.assertEqual(200, response.code)
+        self.assert_subtitle_contents_matches()
+
+    @gen_test
+    def test_downloads_for_all_configured_languages(self):
+        superliminal.env.settings.languages.append(Language.fromietf('pt-BR'))
+        self.set_subtitles([{
+            'id': 'english_sub',
+            'language': Language.fromietf('en'),
+            'series': "Series Title",
+            'season': 2,
+            'episode': 3,
+            'title': "The Episode",
+            'release_group': "TvRG",
+            'resolution': '720p',
+            'content': SUBTITLE_CONTENT
+        },
+        {
+            'id': 'brazilian_sub',
+            'language': Language.fromietf('pt-BR'),
+            'series': "Series Title",
+            'season': 2,
+            'episode': 3,
+            'title': "The Episode",
+            'release_group': "TvRG",
+            'resolution': '720p',
+            'content': SUBTITLE_CONTENT_2
+        }])
+        request = self.get_add_request(name="Series.Title.S02E03.720p.WEB-DL.H264-TvRG.mkv")
+        response = yield self.http_client.fetch(request)
+        self.assertEqual(200, response.code)
+        self.assert_subtitle_contents_matches(expected_content=SUBTITLE_CONTENT, suffix='.en.srt')
+        self.assert_subtitle_contents_matches(expected_content=SUBTITLE_CONTENT_2, suffix='.pt-BR.srt')
+
 
 class CouchPotatoTests(IntegrationTests):
     def setUp(self):
