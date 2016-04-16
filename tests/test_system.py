@@ -69,7 +69,7 @@ class IntegrationTests(AsyncHTTPTestCase):
                     'languages': [Language.fromietf('en')],
                     'subs': []
                 }
-            }),
+            })
         superliminal.env.settings = fakesettings
         self.patchers = []
         self.patchers.append(patch('subliminal.api.ProviderPool', wraps=FakeProviderPool))
@@ -84,7 +84,7 @@ class IntegrationTests(AsyncHTTPTestCase):
         return create_application()
 
     def set_subtitles(self, subtitles):
-        superliminal.env.settings['provider_configs']['fakesub']['subs'] = subtitles
+        superliminal.env.settings.provider_configs['fakesub']['subs'] = subtitles
 
     def get_video_size(self):
         return 876543210;
@@ -102,8 +102,8 @@ class IntegrationTests(AsyncHTTPTestCase):
         self.video_file.close()
 
 class CouchPotatoTests(IntegrationTests):
-    def __init__(self):
-        super(CouchPotatoTests, self).__init__()
+    def setUp(self):
+        super(CouchPotatoTests, self).setUp()
         self.cp = fakecouchpotato.FakeCouchPotato(self.video_filename)
         self.set_subtitles([{
             'id': 'theonlysub',
@@ -113,22 +113,23 @@ class CouchPotatoTests(IntegrationTests):
             'release_group': fakecouchpotato.MOVIE_RELEASE_GROUP,
             'content': SUBTITLE_CONTENT
         }])
-        env.settings.couchpotato_url = self.cp.url
-        env.settings.couchpotato_api_key = fakecouchpotato.API_KEY
+        superliminal.env.settings.couchpotato_url = self.cp.url
+        superliminal.env.settings.couchpotato_api_key = fakecouchpotato.API_KEY
 
     @gen_test
     def test_couchpotato_add(self):
         request = self.cp.get_webhook_request(self.get_url('/add/couchpotato'))
         response = yield self.http_client.fetch(request)
         self.assertEqual(200, response.code)
+        self.assert_subtitle_contents_matches()
 
     def tearDown(self):
         self.cp.finalize()
         super(CouchPotatoTests, self).tearDown()
 
 class SonarrTests(IntegrationTests):
-    def __init__(self):
-        super(SonarrTests, self).__init__()
+    def setUp(self):
+        super(SonarrTests, self).setUp()
         self.sonarr = fakesonarr.FakeSonarr(self.video_filename)
         self.set_subtitles([{
             'id': 'theonlysub',
@@ -140,8 +141,8 @@ class SonarrTests(IntegrationTests):
             'release_group': fakesonarr.EPISODE_FILE_RELEASE_GROUP,
             'content': SUBTITLE_CONTENT
         }])
-        env.settings.sonarr_url = self.sonarr.url
-        env.settings.sonarr_api_key = fakesonarr.API_KEY
+        superliminal.env.settings.sonarr_url = self.sonarr.url
+        superliminal.env.settings.sonarr_api_key = fakesonarr.API_KEY
 
     def get_video_size(self):
         return fakesonarr.EPISODE_FILE_SIZE
@@ -151,6 +152,7 @@ class SonarrTests(IntegrationTests):
         request = self.sonarr.get_webhook_request(self.get_url('/add/sonarr'))
         response = yield self.http_client.fetch(request)
         self.assertEqual(200, response.code)
+        self.assert_subtitle_contents_matches()
 
     def tearDown(self):
         self.sonarr.finalize()
