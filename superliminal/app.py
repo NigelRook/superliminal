@@ -70,10 +70,6 @@ def run(args):
     region.configure('dogpile.cache.dbm', expiration_time=timedelta(days=30),
                      arguments={'filename': env.paths.cache_file})
 
-    logger.info("Running startup check for better subs...")
-    with SuperliminalCore() as c:
-        c.check_for_better()
-
     logger.info("Starting periodic better subs checking thread...")
     checker = Checker()
     checker.start()
