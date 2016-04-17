@@ -46,6 +46,7 @@ def run_server():
     http_server = HTTPServer(application)
     http_server.listen(5000)
     try:
+        IOLoop.current().spawn_callback(SuperliminalCore.consumer)
         IOLoop.current().start()
     finally:
         http_server.stop()

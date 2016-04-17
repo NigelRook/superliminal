@@ -4,13 +4,33 @@ import os
 import io
 from babelfish import Language
 from datetime import datetime, timedelta
+from tornado.queues import Queue
+from tornado import gen
+from tornado.concurrent import run_on_executor
+from concurrent.futures import ThreadPoolExecutor
 
 from . import env, datastore
 
 logger = logging.getLogger(__name__)
 
+
 class SuperliminalCore:
-    def __enter__(self):
+    q = Queue()
+    executor = ThreadPoolExecutor(max_workers=1)
+
+    @classmethod
+    @gen.coroutine
+    def consume(cls):
+        while True:
+            (fun, args) = yield cls.q.get()
+            try:
+                core = SuperliminalCore()
+                fun(core, *args)
+            finally:
+                cls.q.task_done()
+                core.close()
+
+    def __init__(self):
         logger.debug("Connecting to providers")
         self._provider_pool = subliminal.api.ProviderPool(
             providers=env.settings.providers, provider_configs=env.settings.provider_configs)
@@ -19,14 +39,15 @@ class SuperliminalCore:
         self._datastore = datastore.SqLiteDataStore(env.paths.db_path)
         return self
 
-    def __exit__(self, type, value, traceback):
+    def close(self):
         logger.debug("Disconnecting from providers")
         self._provider_pool.terminate()
         logger.debug("Disconnecting from data store")
         self._datastore.close()
         return False
 
-    def add_video(self, path, name):
+    @run_on_executor
+    def _add_video(self, path, name):
         logger.debug("add_video(%s, %s)", path, name)
         v = subliminal.video.Video.fromname(name)
         v.size = os.path.getsize(path)
@@ -78,7 +99,8 @@ class SuperliminalCore:
             f.write(sub.content)
         self._datastore.add_download(path, sub.provider_name, str(sub.id), lang, score)
 
-    def check_for_better(self):
+    @run_on_executor
+    def _check_for_better(self):
         logger.debug("check_for_better()")
         ignore_older_than = datetime.utcnow() - timedelta(days=env.settings.search_for_days)
         incomplete_videos = self._datastore.get_incomplete_videos(
@@ -86,3 +108,11 @@ class SuperliminalCore:
         for video in incomplete_videos:
             for need in video['needs']:
                 self._download_best_subtitles(video['path'], video['video'], need['lang'], need['current_score'] + 1)
+
+    @classmethod
+    def add_video(cls, path, name):
+        cls.q.put_nowait((cls._add_video, [path, name]))
+
+    @classmethod
+    def check_for_better(cls):
+        cls.q.putnowait((cls._check_for_better, []))

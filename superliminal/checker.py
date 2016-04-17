@@ -25,7 +25,6 @@ class Checker:
     def _check(self):
         try:
             logger.info("Initiating check for better subs...")
-            with SuperliminalCore() as core:
-                core.check_for_better()
+            SuperliminalCore.check_for_better()
         finally:
             self._start_timer()

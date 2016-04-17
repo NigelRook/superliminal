@@ -16,8 +16,7 @@ class AddHandler(RequestHandler):
         path = data['path']
         name = data['name'] if 'name' in data else data['path']
         logger.info("ADD: %s -> %s", path, name)
-        with SuperliminalCore() as core:
-            core.add_video(path, name)
+        SuperliminalCore.add_video(path, name)
 
 
 class CouchPotatoHandler(RequestHandler):
@@ -48,9 +47,7 @@ class CouchPotatoHandler(RequestHandler):
         path = release['files']['movie'][0]
         name = release['info']['name'].strip()+os.path.splitext(path)[1]
         logger.info("ADD (couchpotato): %s -> %s", path, name)
-
-        with SuperliminalCore() as core:
-            core.add_video(path, name)
+        SuperliminalCore.add_video(path, name)
 
 
 class SonarrHandler(RequestHandler):
@@ -63,30 +60,29 @@ class SonarrHandler(RequestHandler):
             return
 
         http_client = AsyncHTTPClient()
-        with SuperliminalCore() as core:
-            for episode in data['Episodes']:
-                id = episode['Id']
-                headers = {'X-Api-Key':env.settings.sonarr_api_key}
+        for episode in data['Episodes']:
+            id = episode['Id']
+            headers = {'X-Api-Key':env.settings.sonarr_api_key}
 
-                request = HTTPRequest(
-                    method='GET', headers=headers,
-                    url='%s/api/Episode/%d' % (env.settings.sonarr_url, id))
-                response = yield http_client.fetch(request)
-                episode_data = json_decode(response.body)
-                logger.debug('Sonarr episode data: %s', episode_data)
+            request = HTTPRequest(
+                method='GET', headers=headers,
+                url='%s/api/Episode/%d' % (env.settings.sonarr_url, id))
+            response = yield http_client.fetch(request)
+            episode_data = json_decode(response.body)
+            logger.debug('Sonarr episode data: %s', episode_data)
 
-                file_id = episode_data['episodeFileId']
-                request = HTTPRequest(
-                    method='GET', headers=headers,
-                    url='%s/api/EpisodeFile/%d' % (env.settings.sonarr_url, file_id))
-                response = yield http_client.fetch(request)
-                file_data = json_decode(response.body)
-                logger.debug('Sonarr file data: %s', file_data)
+            file_id = episode_data['episodeFileId']
+            request = HTTPRequest(
+                method='GET', headers=headers,
+                url='%s/api/EpisodeFile/%d' % (env.settings.sonarr_url, file_id))
+            response = yield http_client.fetch(request)
+            file_data = json_decode(response.body)
+            logger.debug('Sonarr file data: %s', file_data)
 
-                path = file_data['path']
-                name = file_data['sceneName']+os.path.splitext(path)[1]
-                logger.info("ADD (sonarr): %s -> %s", path, name)
-                core.add_video(path, name)
+            path = file_data['path']
+            name = file_data['sceneName']+os.path.splitext(path)[1]
+            logger.info("ADD (sonarr): %s -> %s", path, name)
+            SuperliminalCore.add_video(path, name)
 
 def create_application():
     routes = [

@@ -10,6 +10,7 @@ from superliminal.settings import Settings
 from superliminal.api import create_application
 import superliminal.env
 import tornado.web
+from tornado import gen
 from tornado.httpclient import HTTPRequest
 from tornado.testing import AsyncHTTPTestCase, gen_test
 from mock import patch
@@ -90,10 +91,23 @@ class IntegrationTests(AsyncHTTPTestCase):
     def get_video_size(self):
         return 876543210;
 
-    def assert_subtitle_contents_matches(self, expected_content=SUBTITLE_CONTENT, suffix='.en.srt'):
+    def subtitle_contents_matches(self, expected_content=SUBTITLE_CONTENT, suffix='.en.srt'):
         expected_sub_filename = re.sub(r'\.mkv$', suffix, self.video_filename)
+        if not os.path.isfile(expected_sub_filename):
+            return False
         with open(expected_sub_filename, 'r') as subfile:
-            self.assertEqual(expected_content, subfile.read())
+            return expected_content == subfile.read()
+
+    @gen.coroutine
+    def assert_subtitle_contents_eventually_matches(self, **kwargs):
+        passed = False
+        for i in range(1, 100):
+            if self.subtitle_contents_matches(**kwargs):
+                passed = True
+                break
+            yield gen.sleep(0.05)
+        if not passed:
+            self.fail()
 
     def tearDown(self):
         for patcher in self.patchers:
@@ -101,11 +115,6 @@ class IntegrationTests(AsyncHTTPTestCase):
         self.db_file.close()
         self.settings_file.close()
         self.video_file.close()
-
-    def enable_logging(self):
-        logger = logging.getLogger()
-        logger.level = logging.DEBUG
-        logger.addHandler(logging.StreamHandler(sys.stdout))
 
 class AddTests(IntegrationTests):
     def get_add_request(self, path=None, name=None):
@@ -133,7 +142,7 @@ class AddTests(IntegrationTests):
         request = self.get_add_request(name="Series.Title.S02E03.720p.WEB-DL.H264-TvRG.mkv")
         response = yield self.http_client.fetch(request)
         self.assertEqual(200, response.code)
-        self.assert_subtitle_contents_matches()
+        self.assert_subtitle_contents_eventually_matches()
 
     @gen_test
     def test_add_movie(self):
@@ -148,7 +157,7 @@ class AddTests(IntegrationTests):
         request = self.get_add_request(name="Movie.Title.2016.720p.WEB-DL.H264-MovieRG.mkv")
         response = yield self.http_client.fetch(request)
         self.assertEqual(200, response.code)
-        self.assert_subtitle_contents_matches()
+        self.assert_subtitle_contents_eventually_matches()
 
     @gen_test
     def test_gets_best_match(self):
@@ -188,7 +197,7 @@ class AddTests(IntegrationTests):
         request = self.get_add_request(name="Series.Title.S02E03.720p.WEB-DL.H264-TvRG.mkv")
         response = yield self.http_client.fetch(request)
         self.assertEqual(200, response.code)
-        self.assert_subtitle_contents_matches()
+        self.assert_subtitle_contents_eventually_matches()
 
     @gen_test
     def test_downloads_new_sub_if_new_video_added_for_existing_path(self):
@@ -217,11 +226,11 @@ class AddTests(IntegrationTests):
         request = self.get_add_request(name="Series.Title.S02E03.720p.WEB-DL.H264-OtherRG.mkv")
         response = yield self.http_client.fetch(request)
         self.assertEqual(200, response.code)
-        self.assert_subtitle_contents_matches(SUBTITLE_CONTENT_2)
+        self.assert_subtitle_contents_eventually_matches(SUBTITLE_CONTENT_2)
         request = self.get_add_request(name="Series.Title.S02E03.720p.WEB-DL.H264-TvRG.mkv")
         response = yield self.http_client.fetch(request)
         self.assertEqual(200, response.code)
-        self.assert_subtitle_contents_matches()
+        self.assert_subtitle_contents_eventually_matches()
 
     @gen_test
     def test_downloads_for_all_configured_languages(self):
@@ -251,8 +260,8 @@ class AddTests(IntegrationTests):
         request = self.get_add_request(name="Series.Title.S02E03.720p.WEB-DL.H264-TvRG.mkv")
         response = yield self.http_client.fetch(request)
         self.assertEqual(200, response.code)
-        self.assert_subtitle_contents_matches(expected_content=SUBTITLE_CONTENT, suffix='.en.srt')
-        self.assert_subtitle_contents_matches(expected_content=SUBTITLE_CONTENT_2, suffix='.pt-BR.srt')
+        self.assert_subtitle_contents_eventually_matches(expected_content=SUBTITLE_CONTENT, suffix='.en.srt')
+        self.assert_subtitle_contents_eventually_matches(expected_content=SUBTITLE_CONTENT_2, suffix='.pt-BR.srt')
 
 
 class CouchPotatoTests(IntegrationTests):
@@ -275,7 +284,7 @@ class CouchPotatoTests(IntegrationTests):
         request = self.cp.get_webhook_request(self.get_url('/add/couchpotato'))
         response = yield self.http_client.fetch(request)
         self.assertEqual(200, response.code)
-        self.assert_subtitle_contents_matches()
+        self.assert_subtitle_contents_eventually_matches()
 
     def tearDown(self):
         self.cp.finalize()
@@ -306,7 +315,7 @@ class SonarrTests(IntegrationTests):
         request = self.sonarr.get_webhook_request(self.get_url('/add/sonarr'))
         response = yield self.http_client.fetch(request)
         self.assertEqual(200, response.code)
-        self.assert_subtitle_contents_matches()
+        self.assert_subtitle_contents_eventually_matches()
 
     def tearDown(self):
         self.sonarr.finalize()
