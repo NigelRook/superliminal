@@ -118,6 +118,12 @@ class IntegrationTests(AsyncHTTPTestCase):
         self.settings_file.close()
         self.video_file.close()
 
+    def enable_logging(self):
+        logger = logging.getLogger()
+        logger.level = logging.DEBUG
+        logger.addHandler(logging.StreamHandler(sys.stdout))
+
+
 class AddTests(IntegrationTests):
     def get_add_request(self, path=None, name=None):
         url = self.get_url('/add')
