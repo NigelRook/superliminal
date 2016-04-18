@@ -8,6 +8,7 @@ from fakesubprovider import FakeProviderPool
 from babelfish import Language
 from superliminal.settings import Settings
 from superliminal.api import create_application
+from superliminal.core import SuperliminalCore
 import superliminal.env
 import tornado.web
 from tornado import gen
@@ -56,6 +57,7 @@ class FakePaths(object):
 class IntegrationTests(AsyncHTTPTestCase):
     def setUp(self):
         super(IntegrationTests, self).setUp()
+        SuperliminalCore.start_consumer()
         self.db_file = tempfile.NamedTemporaryFile()
         self.settings_file = tempfile.NamedTemporaryFile()
         self.video_file = tempfile.NamedTemporaryFile(suffix='.mkv')
