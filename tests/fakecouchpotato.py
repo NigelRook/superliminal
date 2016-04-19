@@ -40,7 +40,7 @@ class FakeCouchPotato(object):
         self.server.listen(self.port)
         self.url = 'http://localhost:%s' % (self.port,)
         self.video_filename = video_filename
-        self.return_files_immediately = True
+        self.return_files = True
 
     def get_webhook_request(self, url):
         return HTTPRequest(url, method='POST',
@@ -129,7 +129,7 @@ class FakeCouchPotato(object):
             self.owner = owner
 
         def get(self):
-            if self.owner.return_files_immediately:
+            if self.owner.return_files:
                 template = self.MOVIE_WITH_FILE_TEMPLATE
             else:
                 template = self.MOVIE_WITHOUT_FILE_TEMPLATE

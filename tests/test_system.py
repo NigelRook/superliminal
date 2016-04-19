@@ -294,6 +294,23 @@ class CouchPotatoTests(IntegrationTests):
         self.assertEqual(200, response.code)
         self.assert_subtitle_contents_eventually_matches()
 
+    @gen_test
+    def test_couchpotato_add_with_files_not_known_immediately(self):
+        self.enable_logging()
+        from superliminal.api import CouchPotatoHandler
+        CouchPotatoHandler.recheck_files_frequency = 0.05
+
+        self.cp.return_files = False
+        request = self.cp.get_webhook_request(self.get_url('/add/couchpotato'))
+        response_fut = self.http_client.fetch(request)
+        yield gen.sleep(0.1)
+
+        self.cp.return_files = True
+        response = yield response_fut
+
+        self.assertEqual(200, response.code)
+        self.assert_subtitle_contents_eventually_matches()
+
     def tearDown(self):
         self.cp.finalize()
         super(CouchPotatoTests, self).tearDown()

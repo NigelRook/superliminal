@@ -20,6 +20,9 @@ class AddHandler(RequestHandler):
 
 
 class CouchPotatoHandler(RequestHandler):
+    recheck_files_frequency = 5
+    recheck_files_attempts = 6
+
     @gen.coroutine
     def post(self):
         if ((not 'imdb_id' in self.request.body_arguments) or
@@ -34,20 +37,35 @@ class CouchPotatoHandler(RequestHandler):
         id = self.request.body_arguments['imdb_id'][0]
 
         http_client = AsyncHTTPClient()
-        request = HTTPRequest(
-            method='GET',
-            url='%s/api/%s/media.get?id=%s' %
-                (env.settings.couchpotato_url,
-                 env.settings.couchpotato_api_key,
-                 url_escape(id)))
-        response = yield http_client.fetch(request)
-        movie_data = json_decode(response.body)
-        release = next((release for release in movie_data['media']['releases'] if release['status'] == 'downloaded'))
-        logger.debug('release: %s', release)
-        path = release['files']['movie'][0]
-        name = release['info']['name'].strip()+os.path.splitext(path)[1]
-        logger.info("ADD (couchpotato): %s -> %s", path, name)
-        SuperliminalCore.add_video(path, name)
+        for attempt in range(0, self.recheck_files_attempts):
+            request = HTTPRequest(
+                method='GET',
+                url='%s/api/%s/media.get?id=%s' %
+                    (env.settings.couchpotato_url,
+                     env.settings.couchpotato_api_key,
+                     url_escape(id)))
+            response = yield http_client.fetch(request)
+            movie_data = json_decode(response.body)
+            releases = [release for release in movie_data['media']['releases'] if release['status'] in ['downloaded', 'done']]
+            if not releases:
+                logger.error('No release found for movie id %s', id)
+                self.set_status(400)
+                return
+
+            release = releases[0]
+            logger.debug('release: %s', release)
+            if (not ('files' in release)) or (not ('movie' in release['files'])):
+                yield gen.sleep(self.recheck_files_frequency)
+                continue
+
+            path = release['files']['movie'][0]
+            name = release['info']['name'].strip()+os.path.splitext(path)[1]
+            logger.info("ADD (couchpotato): %s -> %s", path, name)
+            SuperliminalCore.add_video(path, name)
+            return
+
+        logger.error("Couldn't get files from couchpotato for %s", id)
+        self.set_status(408)
 
 
 class SonarrHandler(RequestHandler):
