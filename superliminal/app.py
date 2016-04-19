@@ -3,10 +3,10 @@ import sys
 import logging
 from datetime import timedelta
 from argparse import ArgumentParser
+from tornado import gen
 from tornado.ioloop import IOLoop
 from tornado.httpserver import HTTPServer
 
-from .checker import Checker
 from .settings import Settings
 from .core import SuperliminalCore
 from . import api, env
@@ -41,6 +41,16 @@ def init_logging(level):
     for logger_name in ['guessit', 'subliminal', 'tornado', 'stevedore']:
         logging.getLogger(logger_name).setLevel(logging.INFO)
 
+@gen.coroutine
+def check_for_better():
+    while True:
+        yield gen.sleep(env.settings.search_interval_hours * 60 * 60)
+        try:
+            logger.info("Initiating check for better subs...")
+            SuperliminalCore.check_for_better()
+        finally:
+            self._start_timer()
+
 def run_server():
     application = api.create_application()
     http_server = HTTPServer(application)
@@ -71,9 +81,8 @@ def run(args):
     region.configure('dogpile.cache.dbm', expiration_time=timedelta(days=30),
                      arguments={'filename': env.paths.cache_file})
 
-    logger.info("Starting periodic better subs checking thread...")
-    checker = Checker()
-    checker.start()
+    logger.info("Spawning check_for_better async loop")
+    IOLoop.current().spawn_callback(check_for_better)
 
     try:
         run_server()
