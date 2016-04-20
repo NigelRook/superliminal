@@ -122,4 +122,4 @@ class SuperliminalCore:
 
     @classmethod
     def check_for_better(cls):
-        cls.q.putnowait((cls._check_for_better, []))
+        cls.q.put_nowait((cls._check_for_better, []))
