@@ -13,7 +13,7 @@ import superliminal.env
 import tornado.web
 from tornado import gen
 from tornado.httpclient import HTTPRequest
-from tornado.testing import AsyncHTTPTestCase, gen_test
+from tornado.testing import AsyncHTTPTestCase, LogTrapTestCase, gen_test
 from mock import patch
 import json
 
@@ -54,7 +54,7 @@ class FakePaths(object):
     def __init__(self, db_path=None):
         self.db_path = db_path
 
-class IntegrationTests(AsyncHTTPTestCase):
+class IntegrationTests(AsyncHTTPTestCase, LogTrapTestCase):
     def setUp(self):
         super(IntegrationTests, self).setUp()
         SuperliminalCore.start_consumer()
@@ -234,7 +234,7 @@ class AddTests(IntegrationTests):
         request = self.get_add_request(name="Series.Title.S02E03.720p.WEB-DL.H264-OtherRG.mkv")
         response = yield self.http_client.fetch(request)
         self.assertEqual(200, response.code)
-        yield self.assert_subtitle_contents_eventually_matches(SUBTITLE_CONTENT_2)
+        yield self.assert_subtitle_contents_eventually_matches(expected_content=SUBTITLE_CONTENT_2)
         request = self.get_add_request(name="Series.Title.S02E03.720p.WEB-DL.H264-TvRG.mkv")
         response = yield self.http_client.fetch(request)
         self.assertEqual(200, response.code)

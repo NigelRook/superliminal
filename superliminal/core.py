@@ -16,11 +16,11 @@ logger = logging.getLogger(__name__)
 
 
 class SuperliminalCore:
-    q = Queue()
     executor = ThreadPoolExecutor(max_workers=1)
 
     @classmethod
     def start_consumer(cls):
+        cls.q = Queue()
         IOLoop.current().spawn_callback(cls.consume)
 
     @classmethod
