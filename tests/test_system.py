@@ -296,7 +296,6 @@ class CouchPotatoTests(IntegrationTests):
 
     @gen_test
     def test_couchpotato_add_with_files_not_known_immediately(self):
-        self.enable_logging()
         from superliminal.api import CouchPotatoHandler
         CouchPotatoHandler.recheck_files_frequency = 0.05
 
