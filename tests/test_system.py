@@ -109,7 +109,7 @@ class IntegrationTests(AsyncHTTPTestCase):
                 break
             yield gen.sleep(0.05)
         if not passed:
-            self.fail()
+            self.fail("Timed out waiting for expected subtitle content")
 
     def tearDown(self):
         for patcher in self.patchers:
@@ -150,7 +150,7 @@ class AddTests(IntegrationTests):
         request = self.get_add_request(name="Series.Title.S02E03.720p.WEB-DL.H264-TvRG.mkv")
         response = yield self.http_client.fetch(request)
         self.assertEqual(200, response.code)
-        self.assert_subtitle_contents_eventually_matches()
+        yield self.assert_subtitle_contents_eventually_matches()
 
     @gen_test
     def test_add_movie(self):
@@ -165,7 +165,7 @@ class AddTests(IntegrationTests):
         request = self.get_add_request(name="Movie.Title.2016.720p.WEB-DL.H264-MovieRG.mkv")
         response = yield self.http_client.fetch(request)
         self.assertEqual(200, response.code)
-        self.assert_subtitle_contents_eventually_matches()
+        yield self.assert_subtitle_contents_eventually_matches()
 
     @gen_test
     def test_gets_best_match(self):
@@ -205,7 +205,7 @@ class AddTests(IntegrationTests):
         request = self.get_add_request(name="Series.Title.S02E03.720p.WEB-DL.H264-TvRG.mkv")
         response = yield self.http_client.fetch(request)
         self.assertEqual(200, response.code)
-        self.assert_subtitle_contents_eventually_matches()
+        yield self.assert_subtitle_contents_eventually_matches()
 
     @gen_test
     def test_downloads_new_sub_if_new_video_added_for_existing_path(self):
@@ -234,11 +234,11 @@ class AddTests(IntegrationTests):
         request = self.get_add_request(name="Series.Title.S02E03.720p.WEB-DL.H264-OtherRG.mkv")
         response = yield self.http_client.fetch(request)
         self.assertEqual(200, response.code)
-        self.assert_subtitle_contents_eventually_matches(SUBTITLE_CONTENT_2)
+        yield self.assert_subtitle_contents_eventually_matches(SUBTITLE_CONTENT_2)
         request = self.get_add_request(name="Series.Title.S02E03.720p.WEB-DL.H264-TvRG.mkv")
         response = yield self.http_client.fetch(request)
         self.assertEqual(200, response.code)
-        self.assert_subtitle_contents_eventually_matches()
+        yield self.assert_subtitle_contents_eventually_matches()
 
     @gen_test
     def test_downloads_for_all_configured_languages(self):
@@ -268,8 +268,8 @@ class AddTests(IntegrationTests):
         request = self.get_add_request(name="Series.Title.S02E03.720p.WEB-DL.H264-TvRG.mkv")
         response = yield self.http_client.fetch(request)
         self.assertEqual(200, response.code)
-        self.assert_subtitle_contents_eventually_matches(expected_content=SUBTITLE_CONTENT, suffix='.en.srt')
-        self.assert_subtitle_contents_eventually_matches(expected_content=SUBTITLE_CONTENT_2, suffix='.pt-BR.srt')
+        yield self.assert_subtitle_contents_eventually_matches(expected_content=SUBTITLE_CONTENT, suffix='.en.srt')
+        yield self.assert_subtitle_contents_eventually_matches(expected_content=SUBTITLE_CONTENT_2, suffix='.pt-BR.srt')
 
 
 class CouchPotatoTests(IntegrationTests):
@@ -292,7 +292,7 @@ class CouchPotatoTests(IntegrationTests):
         request = self.cp.get_webhook_request(self.get_url('/add/couchpotato'))
         response = yield self.http_client.fetch(request)
         self.assertEqual(200, response.code)
-        self.assert_subtitle_contents_eventually_matches()
+        yield self.assert_subtitle_contents_eventually_matches()
 
     @gen_test
     def test_couchpotato_add_with_files_not_known_immediately(self):
@@ -309,7 +309,7 @@ class CouchPotatoTests(IntegrationTests):
         response = yield response_fut
 
         self.assertEqual(200, response.code)
-        self.assert_subtitle_contents_eventually_matches()
+        yield self.assert_subtitle_contents_eventually_matches()
 
     def tearDown(self):
         self.cp.finalize()
@@ -340,7 +340,7 @@ class SonarrTests(IntegrationTests):
         request = self.sonarr.get_webhook_request(self.get_url('/add/sonarr'))
         response = yield self.http_client.fetch(request)
         self.assertEqual(200, response.code)
-        self.assert_subtitle_contents_eventually_matches()
+        yield self.assert_subtitle_contents_eventually_matches()
 
     def tearDown(self):
         self.sonarr.finalize()
