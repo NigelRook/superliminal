@@ -112,6 +112,9 @@ class IntegrationTests(AsyncHTTPTestCase, LogTrapTestCase):
         result['id'] = new_id
         return result
 
+    def wait_until_processed(self):
+        return SuperliminalCore.q.join()
+
     def subtitle_contents_matches(self, video_filename=None, expected_content=SUBTITLE_CONTENT, suffix='.en.srt'):
         video_filename = video_filename or self.video_filename
         expected_sub_filename = re.sub(r'\.mkv$', suffix, video_filename)
@@ -120,16 +123,13 @@ class IntegrationTests(AsyncHTTPTestCase, LogTrapTestCase):
         with open(expected_sub_filename, 'r') as subfile:
             return expected_content == subfile.read()
 
-    @gen.coroutine
-    def assert_subtitle_contents_eventually_matches(self, **kwargs):
-        passed = False
-        for i in range(1, 40):
-            if self.subtitle_contents_matches(**kwargs):
-                passed = True
-                break
-            yield gen.sleep(0.05)
-        if not passed:
-            self.fail("Timed out waiting for expected subtitle content")
+    def assert_no_subtitle(self, video_filename=None, suffix='.en.srt'):
+        video_filename = video_filename or self.video_filename
+        expected_sub_filename = re.sub(r'\.mkv$', suffix, video_filename)
+        self.assertFalse(os.path.isfile(expected_sub_filename))
+
+    def assert_subtitle_contents_matches(self, **kwargs):
+        self.assertTrue(self.subtitle_contents_matches(**kwargs))
 
     def tearDown(self):
         for patcher in self.patchers:
@@ -169,7 +169,8 @@ class AddTests(IntegrationTests):
         request = self.get_add_request(name="Series.Title.S02E03.720p.WEB-DL.H264-TvRG.mkv")
         response = yield self.http_client.fetch(request)
         self.assertEqual(200, response.code)
-        yield self.assert_subtitle_contents_eventually_matches()
+        yield self.wait_until_processed()
+        self.assert_subtitle_contents_matches()
 
     @gen_test
     def test_add_movie(self):
@@ -184,7 +185,8 @@ class AddTests(IntegrationTests):
         request = self.get_add_request(name="Movie.Title.2016.720p.WEB-DL.H264-MovieRG.mkv")
         response = yield self.http_client.fetch(request)
         self.assertEqual(200, response.code)
-        yield self.assert_subtitle_contents_eventually_matches()
+        yield self.wait_until_processed()
+        self.assert_subtitle_contents_matches()
 
     @gen_test
     def test_gets_best_match(self):
@@ -224,7 +226,8 @@ class AddTests(IntegrationTests):
         request = self.get_add_request(name="Series.Title.S02E03.720p.WEB-DL.H264-TvRG.mkv")
         response = yield self.http_client.fetch(request)
         self.assertEqual(200, response.code)
-        yield self.assert_subtitle_contents_eventually_matches()
+        yield self.wait_until_processed()
+        self.assert_subtitle_contents_matches()
 
     @gen_test
     def test_downloads_new_sub_if_new_video_added_for_existing_path(self):
@@ -253,11 +256,12 @@ class AddTests(IntegrationTests):
         request = self.get_add_request(name="Series.Title.S02E03.720p.WEB-DL.H264-OtherRG.mkv")
         response = yield self.http_client.fetch(request)
         self.assertEqual(200, response.code)
-        yield self.assert_subtitle_contents_eventually_matches(expected_content=SUBTITLE_CONTENT_2)
+        yield self.wait_until_processed()
         request = self.get_add_request(name="Series.Title.S02E03.720p.WEB-DL.H264-TvRG.mkv")
         response = yield self.http_client.fetch(request)
         self.assertEqual(200, response.code)
-        yield self.assert_subtitle_contents_eventually_matches()
+        yield self.wait_until_processed()
+        self.assert_subtitle_contents_matches()
 
     @gen_test
     def test_downloads_for_all_configured_languages(self):
@@ -287,8 +291,45 @@ class AddTests(IntegrationTests):
         request = self.get_add_request(name="Series.Title.S02E03.720p.WEB-DL.H264-TvRG.mkv")
         response = yield self.http_client.fetch(request)
         self.assertEqual(200, response.code)
-        yield self.assert_subtitle_contents_eventually_matches(expected_content=SUBTITLE_CONTENT, suffix='.en.srt')
-        yield self.assert_subtitle_contents_eventually_matches(expected_content=SUBTITLE_CONTENT_2, suffix='.pt-BR.srt')
+        yield self.wait_until_processed()
+        self.assert_subtitle_contents_matches(expected_content=SUBTITLE_CONTENT, suffix='.en.srt')
+        self.assert_subtitle_contents_matches(expected_content=SUBTITLE_CONTENT_2, suffix='.pt-BR.srt')
+
+    @gen_test
+    def test_doesnt_download_movie_below_score_threshold(self):
+        superliminal.env.settings.min_movie_score = 50
+        self.set_subtitles([{
+            'id': 'theonlysub',
+            'language': Language.fromietf('en'),
+            'title': "Movie Title",
+            'year': 2016,
+            'release_group': "MovieRG",
+            'content': SUBTITLE_CONTENT
+        }])
+        request = self.get_add_request(name="Movie.Title.2016.720p.WEB-DL.H264-MovieRG.mkv")
+        response = yield self.http_client.fetch(request)
+        self.assertEqual(200, response.code)
+        yield self.wait_until_processed()
+        self.assert_no_subtitle()
+
+    @gen_test
+    def test_doesnt_download_episode_below_score_threshold(self):
+        superliminal.env.settings.min_episode_score = 150
+        self.set_subtitles([{
+            'id': 'theonlysub',
+            'language': Language.fromietf('en'),
+            'series': "Series Title",
+            'season': 2,
+            'episode': 3,
+            'title': "The Episode",
+            'release_group': "TvRG",
+            'content': SUBTITLE_CONTENT
+        }])
+        request = self.get_add_request(name="Series.Title.S02E03.720p.WEB-DL.H264-TvRG.mkv")
+        response = yield self.http_client.fetch(request)
+        self.assertEqual(200, response.code)
+        yield self.wait_until_processed()
+        self.assert_no_subtitle()
 
 class CheckForBetterTests(IntegrationTests):
     @gen.coroutine
@@ -305,10 +346,7 @@ class CheckForBetterTests(IntegrationTests):
             headers={'Content-Type':'application/json'},
             body=json.dumps(body))
         yield self.http_client.fetch(request)
-
-        if subtitle:
-            yield self.assert_subtitle_contents_eventually_matches(expected_content=subtitle['content'],
-                video_filename=path, suffix=".%s.srt" % subtitle['language'])
+        yield self.wait_until_processed()
 
     @gen_test
     def test_check_for_better_gets_better_sub_when_available(self):
@@ -327,7 +365,8 @@ class CheckForBetterTests(IntegrationTests):
 
         self.set_subtitles([oksub, bettersub])
         SuperliminalCore.check_for_better()
-        yield self.assert_subtitle_contents_eventually_matches(expected_content=SUBTITLE_CONTENT_2)
+        yield self.wait_until_processed()
+        self.assert_subtitle_contents_matches(expected_content=SUBTITLE_CONTENT_2)
 
     @gen_test
     def test_check_for_better_checks_all_recent_videos(self):
@@ -361,8 +400,9 @@ class CheckForBetterTests(IntegrationTests):
         self.set_subtitles([oktvsub, bettertvsub, okmoviesub, bettermoviesub])
 
         SuperliminalCore.check_for_better()
-        yield self.assert_subtitle_contents_eventually_matches(expected_content=SUBTITLE_CONTENT_2)
-        yield self.assert_subtitle_contents_eventually_matches(video_filename=movie_filename,
+        yield self.wait_until_processed()
+        self.assert_subtitle_contents_matches(expected_content=SUBTITLE_CONTENT_2)
+        self.assert_subtitle_contents_matches(video_filename=movie_filename,
             expected_content=SUBTITLE_CONTENT_3)
 
     @gen_test
@@ -380,9 +420,7 @@ class CheckForBetterTests(IntegrationTests):
         }
         okbrsub = self.transform_sub(okensub, 'okbrsub', language=Language.fromietf('pt-BR'))
         self.set_subtitles([okensub, okbrsub])
-        self.add_video(name="Series.Title.S02E03.720p.WEB-DL.H264-TvRG.mkv")
-        yield self.assert_subtitle_contents_eventually_matches(expected_content=SUBTITLE_CONTENT, suffix='.en.srt')
-        yield self.assert_subtitle_contents_eventually_matches(expected_content=SUBTITLE_CONTENT, suffix='.pt-BR.srt')
+        yield self.add_video(name="Series.Title.S02E03.720p.WEB-DL.H264-TvRG.mkv")
 
         betterensub = self.transform_sub(okensub, 'betterensub',
             release_group="TvRG", content=SUBTITLE_CONTENT_2)
@@ -391,8 +429,9 @@ class CheckForBetterTests(IntegrationTests):
         self.set_subtitles([okensub, betterensub, okbrsub, betterbrsub])
 
         SuperliminalCore.check_for_better()
-        yield self.assert_subtitle_contents_eventually_matches(expected_content=SUBTITLE_CONTENT_2, suffix='.en.srt')
-        yield self.assert_subtitle_contents_eventually_matches(expected_content=SUBTITLE_CONTENT_3, suffix='.pt-BR.srt')
+        yield self.wait_until_processed()
+        self.assert_subtitle_contents_matches(expected_content=SUBTITLE_CONTENT_2, suffix='.en.srt')
+        self.assert_subtitle_contents_matches(expected_content=SUBTITLE_CONTENT_3, suffix='.pt-BR.srt')
 
     @gen_test
     def test_check_for_better_checks_languages_with_no_current_subs(self):
@@ -409,7 +448,7 @@ class CheckForBetterTests(IntegrationTests):
         }
         self.set_subtitles([okensub])
         self.add_video(name="Series.Title.S02E03.720p.WEB-DL.H264-TvRG.mkv")
-        yield self.assert_subtitle_contents_eventually_matches(expected_content=SUBTITLE_CONTENT, suffix='.en.srt')
+        yield self.wait_until_processed()
 
         betterensub = self.transform_sub(okensub, 'betterensub',
             release_group="TvRG", content=SUBTITLE_CONTENT_2)
@@ -418,8 +457,51 @@ class CheckForBetterTests(IntegrationTests):
         self.set_subtitles([okensub, betterensub, okbrsub])
 
         SuperliminalCore.check_for_better()
-        yield self.assert_subtitle_contents_eventually_matches(expected_content=SUBTITLE_CONTENT_2, suffix='.en.srt')
-        yield self.assert_subtitle_contents_eventually_matches(expected_content=SUBTITLE_CONTENT_3, suffix='.pt-BR.srt')
+        yield self.wait_until_processed()
+        self.assert_subtitle_contents_matches(expected_content=SUBTITLE_CONTENT_2, suffix='.en.srt')
+        self.assert_subtitle_contents_matches(expected_content=SUBTITLE_CONTENT_3, suffix='.pt-BR.srt')
+
+    @gen_test
+    def test_check_for_better_doesnt_check_for_movies_already_having_subs_above_desired_movie_score(self):
+        superliminal.env.settings.desired_movie_score = 20
+        okmoviesub = {
+            'id': 'okmoviesub',
+            'language': Language.fromietf('en'),
+            'title': "Movie Title",
+            'year': 2016,
+            'release_group': "OtherRG",
+            'content': SUBTITLE_CONTENT
+        }
+        yield self.add_video(name="Movie.Title.2016.720p.WEB-DL.H264-MovieRG.mkv", subtitle=okmoviesub)
+
+        bettermoviesub = self.transform_sub(okmoviesub, 'bettermoviesub', release_group='MovieRG', content=SUBTITLE_CONTENT_2)
+        self.set_subtitles([okmoviesub, bettermoviesub])
+
+        SuperliminalCore.check_for_better()
+        yield self.wait_until_processed()
+        self.assert_subtitle_contents_matches(expected_content=SUBTITLE_CONTENT)
+
+    @gen_test
+    def test_check_for_better_doesnt_check_for_episodes_already_having_subs_above_desired_movie_score(self):
+        superliminal.env.settings.desired_episode_score = 50
+        oktvsub = {
+            'id': 'oktvsub',
+            'language': Language.fromietf('en'),
+            'series': "Series Title",
+            'season': 2,
+            'episode': 3,
+            'title': "The Episode",
+            'release_group': "OtherRG",
+            'content': SUBTITLE_CONTENT
+        }
+        yield self.add_video(name="Series.Title.S02E03.720p.WEB-DL.H264-TvRG.mkv", subtitle=oktvsub)
+
+        bettertvsub = self.transform_sub(oktvsub, 'bettertvsub', release_group='TvRG', content=SUBTITLE_CONTENT_2)
+        self.set_subtitles([oktvsub, bettertvsub])
+
+        SuperliminalCore.check_for_better()
+        yield self.wait_until_processed()
+        self.assert_subtitle_contents_matches(expected_content=SUBTITLE_CONTENT)
 
 
 class CouchPotatoTests(IntegrationTests):
@@ -442,7 +524,8 @@ class CouchPotatoTests(IntegrationTests):
         request = self.cp.get_webhook_request(self.get_url('/add/couchpotato'))
         response = yield self.http_client.fetch(request)
         self.assertEqual(200, response.code)
-        yield self.assert_subtitle_contents_eventually_matches()
+        yield self.wait_until_processed()
+        self.assert_subtitle_contents_matches()
 
     @gen_test
     def test_couchpotato_add_with_files_not_known_immediately(self):
@@ -458,7 +541,8 @@ class CouchPotatoTests(IntegrationTests):
         response = yield response_fut
 
         self.assertEqual(200, response.code)
-        yield self.assert_subtitle_contents_eventually_matches()
+        yield self.wait_until_processed()
+        self.assert_subtitle_contents_matches()
 
     def tearDown(self):
         self.cp.finalize()
@@ -489,7 +573,8 @@ class SonarrTests(IntegrationTests):
         request = self.sonarr.get_webhook_request(self.get_url('/add/sonarr'))
         response = yield self.http_client.fetch(request)
         self.assertEqual(200, response.code)
-        yield self.assert_subtitle_contents_eventually_matches()
+        yield self.wait_until_processed()
+        self.assert_subtitle_contents_matches()
 
     def tearDown(self):
         self.sonarr.finalize()
