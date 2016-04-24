@@ -15,6 +15,7 @@ from tornado import gen
 from tornado.httpclient import HTTPRequest
 from tornado.testing import AsyncHTTPTestCase, LogTrapTestCase, gen_test
 from mock import patch
+from freezegun import freeze_time
 import json
 
 import fakecouchpotato, fakesonarr
@@ -371,6 +372,26 @@ class CheckForBetterTests(IntegrationTests):
         self.assert_subtitle_contents_matches(expected_content=SUBTITLE_CONTENT_2)
 
     @gen_test
+    def test_check_for_better_gets_subs_for_videos_with_no_subs(self):
+        yield self.add_video(name="Series.Title.S02E03.720p.WEB-DL.H264-TvRG.mkv")
+
+        oksub = {
+            'id': 'oksub',
+            'language': Language.fromietf('en'),
+            'series': "Series Title",
+            'season': 2,
+            'episode': 3,
+            'title': "The Episode",
+            'release_group': "OtherRG",
+            'content': SUBTITLE_CONTENT
+        }
+
+        self.set_subtitles([oksub])
+        SuperliminalCore.check_for_better()
+        yield self.wait_until_processed()
+        self.assert_subtitle_contents_matches(expected_content=SUBTITLE_CONTENT)
+
+    @gen_test
     def test_check_for_better_checks_all_recent_videos(self):
         oktvsub = {
             'id': 'oktvsub',
@@ -547,13 +568,9 @@ class CheckForBetterTests(IntegrationTests):
         self.assert_no_subtitle()
 
     @gen_test
-    def test_check_for_better_doesnt_download_episode_subs_with_scores_below_min_threshold(self):
-        superliminal.env.settings.min_episode_score = 150
-        superliminal.env.settings.desired_episode_score = 150
-        yield self.add_video(name="Series.Title.S02E03.720p.WEB-DL.H264-TvRG.mkv")
-
-        oktvsub = {
-            'id': 'oktvsub',
+    def test_check_for_better_doesnt_get_subs_for_old_videos(self):
+        oksub = {
+            'id': 'oksub',
             'language': Language.fromietf('en'),
             'series': "Series Title",
             'season': 2,
@@ -562,11 +579,17 @@ class CheckForBetterTests(IntegrationTests):
             'release_group': "OtherRG",
             'content': SUBTITLE_CONTENT
         }
-        self.set_subtitles([oktvsub])
+        from datetime import datetime, timedelta
+        add_time = datetime.utcnow() - timedelta(days=7, seconds=1)
+        with freeze_time(add_time):
+            yield self.add_video(name="Series.Title.S02E03.720p.WEB-DL.H264-TvRG.mkv", subtitle=oksub)
 
+        bettersub = self.transform_sub(oksub, 'bettersub', release_group="TvRG", content=SUBTITLE_CONTENT_2)
+
+        self.set_subtitles([oksub, bettersub])
         SuperliminalCore.check_for_better()
         yield self.wait_until_processed()
-        self.assert_no_subtitle()
+        self.assert_subtitle_contents_matches(expected_content=SUBTITLE_CONTENT)
 
 
 class CouchPotatoTests(IntegrationTests):
