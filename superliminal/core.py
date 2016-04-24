@@ -114,7 +114,8 @@ class SuperliminalCore:
             env.settings.languages, env.settings.desired_movie_score, env.settings.desired_episode_score, ignore_older_than)
         for video in incomplete_videos:
             for need in video['needs']:
-                self._download_best_subtitles(video['path'], video['video'], need['lang'], need['current_score'] + 1)
+                min_score = max(need['current_score'] + 1, self._get_min_score(video['video']))
+                self._download_best_subtitles(video['path'], video['video'], need['lang'], min_score)
 
     @classmethod
     def add_video(cls, path, name):

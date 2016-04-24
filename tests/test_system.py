@@ -297,7 +297,8 @@ class AddTests(IntegrationTests):
 
     @gen_test
     def test_doesnt_download_movie_below_score_threshold(self):
-        superliminal.env.settings.min_movie_score = 50
+        superliminal.env.settings.min_movie_score = 100
+        superliminal.env.settings.desired_movie_score = 100
         self.set_subtitles([{
             'id': 'theonlysub',
             'language': Language.fromietf('en'),
@@ -315,6 +316,7 @@ class AddTests(IntegrationTests):
     @gen_test
     def test_doesnt_download_episode_below_score_threshold(self):
         superliminal.env.settings.min_episode_score = 150
+        superliminal.env.settings.desired_episode_score = 150
         self.set_subtitles([{
             'id': 'theonlysub',
             'language': Language.fromietf('en'),
@@ -462,7 +464,28 @@ class CheckForBetterTests(IntegrationTests):
         self.assert_subtitle_contents_matches(expected_content=SUBTITLE_CONTENT_3, suffix='.pt-BR.srt')
 
     @gen_test
-    def test_check_for_better_doesnt_check_for_movies_already_having_subs_above_desired_movie_score(self):
+    def test_check_for_better_doesnt_get_new_worse_sub(self):
+        superliminal.env.settings.desired_episode_score = 150
+        oksub = {
+            'id': 'oksub',
+            'language': Language.fromietf('en'),
+            'series': "Series Title",
+            'season': 2,
+            'episode': 3,
+            'title': "The Episode",
+            'release_group': "TvRG",
+            'content': SUBTITLE_CONTENT
+        }
+        yield self.add_video(name="Series.Title.S02E03.720p.WEB-DL.H264-TvRG.mkv", subtitle=oksub)
+        bettersub = self.transform_sub(oksub, 'bettersub', release_group="OtherRG", content=SUBTITLE_CONTENT_2)
+
+        self.set_subtitles([oksub, bettersub])
+        SuperliminalCore.check_for_better()
+        yield self.wait_until_processed()
+        self.assert_subtitle_contents_matches(expected_content=SUBTITLE_CONTENT)
+
+    @gen_test
+    def test_check_for_better_doesnt_check_for_movies_already_having_subs_above_desired_score(self):
         superliminal.env.settings.desired_movie_score = 20
         okmoviesub = {
             'id': 'okmoviesub',
@@ -482,7 +505,7 @@ class CheckForBetterTests(IntegrationTests):
         self.assert_subtitle_contents_matches(expected_content=SUBTITLE_CONTENT)
 
     @gen_test
-    def test_check_for_better_doesnt_check_for_episodes_already_having_subs_above_desired_movie_score(self):
+    def test_check_for_better_doesnt_check_for_episodes_already_having_subs_above_desired_score(self):
         superliminal.env.settings.desired_episode_score = 50
         oktvsub = {
             'id': 'oktvsub',
@@ -502,6 +525,48 @@ class CheckForBetterTests(IntegrationTests):
         SuperliminalCore.check_for_better()
         yield self.wait_until_processed()
         self.assert_subtitle_contents_matches(expected_content=SUBTITLE_CONTENT)
+
+    @gen_test
+    def test_check_for_better_doesnt_download_movie_subs_with_scores_below_min_threshold(self):
+        superliminal.env.settings.min_movie_score = 100
+        superliminal.env.settings.desired_movie_score = 100
+        yield self.add_video(name="Movie.Title.2016.720p.WEB-DL.H264-MovieRG.mkv")
+
+        okmoviesub = {
+            'id': 'okmoviesub',
+            'language': Language.fromietf('en'),
+            'title': "Movie Title",
+            'year': 2016,
+            'release_group': "OtherRG",
+            'content': SUBTITLE_CONTENT
+        }
+        self.set_subtitles([okmoviesub])
+
+        SuperliminalCore.check_for_better()
+        yield self.wait_until_processed()
+        self.assert_no_subtitle()
+
+    @gen_test
+    def test_check_for_better_doesnt_download_episode_subs_with_scores_below_min_threshold(self):
+        superliminal.env.settings.min_episode_score = 150
+        superliminal.env.settings.desired_episode_score = 150
+        yield self.add_video(name="Series.Title.S02E03.720p.WEB-DL.H264-TvRG.mkv")
+
+        oktvsub = {
+            'id': 'oktvsub',
+            'language': Language.fromietf('en'),
+            'series': "Series Title",
+            'season': 2,
+            'episode': 3,
+            'title': "The Episode",
+            'release_group': "OtherRG",
+            'content': SUBTITLE_CONTENT
+        }
+        self.set_subtitles([oktvsub])
+
+        SuperliminalCore.check_for_better()
+        yield self.wait_until_processed()
+        self.assert_no_subtitle()
 
 
 class CouchPotatoTests(IntegrationTests):
