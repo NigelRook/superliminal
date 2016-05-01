@@ -4,20 +4,21 @@ import tempfile
 from subliminal.video import Video
 from babelfish import Language
 from datetime import datetime, timedelta
+from shutil import rmtree
 
-from superliminal.datastore import SqLiteDataStore
+from superliminal.datastore import CodernityDataStore
 
 from unittest import TestCase
 from nose_parameterized import parameterized
 
 class DataStoreTests(TestCase):
     def setUp(self):
-        self.db_file = tempfile.NamedTemporaryFile()
-        self.datastore = SqLiteDataStore(self.db_file.name)
+        self.db_path = tempfile.mkdtemp()
+        self.datastore = CodernityDataStore(self.db_path)
 
     def tearDown(self):
         self.datastore.close()
-        self.db_file.close()
+        rmtree(self.db_path)
 
     def test_newly_added_video_has_no_downloads(self):
         path = "/data/Series/Season 1/01 Title.mkv"

@@ -17,6 +17,7 @@ from tornado.testing import AsyncHTTPTestCase, LogTrapTestCase, gen_test
 from mock import patch
 from freezegun import freeze_time
 import json
+from shutil import rmtree
 
 import fakecouchpotato, fakesonarr
 
@@ -65,13 +66,12 @@ class IntegrationTests(AsyncHTTPTestCase, LogTrapTestCase):
     def setUp(self):
         super(IntegrationTests, self).setUp()
         SuperliminalCore.start_consumer()
-        db_file = tempfile.NamedTemporaryFile()
+        self.db_path = tempfile.mkdtemp()
         settings_file = tempfile.NamedTemporaryFile()
-        self.tempfiles = [db_file, settings_file]
-        self.db_filename = db_file.name
+        self.tempfiles = [settings_file]
         self.settings_filename = settings_file.name
         self.video_filename = self.create_video_file()
-        paths = FakePaths(db_path=self.db_filename)
+        paths = FakePaths(db_path=self.db_path)
         superliminal.env.paths = paths
         fakesettings = FakeSettings(
             providers=['fakesub'],
@@ -137,6 +137,7 @@ class IntegrationTests(AsyncHTTPTestCase, LogTrapTestCase):
             patcher.stop()
         for tempfile in self.tempfiles:
             tempfile.close()
+        rmtree(self.db_path)
 
     def enable_logging(self):
         logger = logging.getLogger()

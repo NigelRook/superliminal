@@ -38,7 +38,7 @@ class SuperliminalCore:
         self._provider_pool = subliminal.api.ProviderPool(
             providers=env.settings.providers, provider_configs=env.settings.provider_configs)
         logger.debug("Connecting to data store")
-        self._datastore = datastore.SqLiteDataStore(env.paths.db_path)
+        self._datastore = datastore.CodernityDataStore(env.paths.db_path)
 
     def close(self):
         logger.debug("Disconnecting from providers")

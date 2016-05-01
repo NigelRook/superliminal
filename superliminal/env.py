@@ -26,7 +26,7 @@ class Paths(object):
 
     @property
     def db_path(self):
-        return os.path.join(self._data_dir, 'superliminal.db')
+        return os.path.join(self._data_dir, 'db/')
 
     @property
     def cache_file(self):
