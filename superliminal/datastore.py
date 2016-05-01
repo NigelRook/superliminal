@@ -39,11 +39,10 @@ class Serializer:
             cls._serialize_fields(v, ['title', 'year'], data)
 
         cls._serialize_fields(v, ['name', 'format', 'release_group', 'resolution', 'video_codec', 'audio_codec', 'imdb_id', 'hashes', 'size'], data)
-        return json.dumps(data), type
+        return data, type
 
     @classmethod
-    def deserialize_video(cls, type, json_data):
-        data = json.loads(json_data)
+    def deserialize_video(cls, type, data):
         logger.debug("Deserializing %s:%s", type, data)
         result = None
         if type == cls._EPISODE_TYPE_IDENTIFIER:
@@ -83,7 +82,7 @@ class SqLiteDataStore:
         added = added or datetime.utcnow()
         data, type = Serializer.serialize_video(video)
         self._conn.execute("DELETE FROM videos WHERE path = ?", (path,))
-        self._conn.execute("INSERT INTO videos (path, data, type, added) VALUES (?, ?, ?, ?)", (path, data, type, str(added)))
+        self._conn.execute("INSERT INTO videos (path, data, type, added) VALUES (?, ?, ?, ?)", (path, json.dumps(data), type, str(added)))
         self._conn.commit()
 
     def add_download(self, path, provider, sub_id, language, score):
@@ -137,7 +136,7 @@ class SqLiteDataStore:
             """, (str(language), ignore_older_than, Serializer._MOVIE_TYPE_IDENTIFIER, desired_movie_score, Serializer._EPISODE_TYPE_IDENTIFIER, desired_episode_score))
             results = c.fetchall()
             for row in results:
-                incomplete.append((row['path'], Serializer.deserialize_video(row['type'], row['data']), language, row['score'] or 0))
+                incomplete.append((row['path'], Serializer.deserialize_video(row['type'], json.loads(row['data'])), language, row['score'] or 0))
 
         keyfunc = lambda (path, video, lang, score): path
         grouped = groupby(sorted(incomplete, key=keyfunc), key=keyfunc)
