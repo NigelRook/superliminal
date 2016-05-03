@@ -30,6 +30,8 @@ class SuperliminalCore:
             (fun, args) = yield cls.q.get()
             try:
                 yield cls.with_instance(fun, args)
+            except Exception:
+                logger.exception("Exception thrown from %s(%s)", fun, args)
             finally:
                 cls.q.task_done()
 
