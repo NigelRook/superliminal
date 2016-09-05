@@ -36,6 +36,10 @@ class CouchPotatoHandler(RequestHandler):
         logger.debug(self.request.body_arguments['imdb_id'])
         id = self.request.body_arguments['imdb_id'][0]
 
+        # Couchpotato won't updat its internal state until we reply, so do that now'
+        self.set_status(200)
+        self.finish()
+
         http_client = AsyncHTTPClient()
         for attempt in range(0, self.recheck_files_attempts):
             request = HTTPRequest(
@@ -49,7 +53,6 @@ class CouchPotatoHandler(RequestHandler):
             releases = [release for release in movie_data['media']['releases'] if release['status'] in ['downloaded', 'done']]
             if not releases:
                 logger.error('No release found for movie id %s', id)
-                self.set_status(400)
                 return
 
             release = releases[0]
@@ -65,7 +68,6 @@ class CouchPotatoHandler(RequestHandler):
             return
 
         logger.error("Couldn't get files from couchpotato for %s", id)
-        self.set_status(408)
 
 
 class SonarrHandler(RequestHandler):

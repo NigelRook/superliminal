@@ -613,6 +613,7 @@ class CouchPotatoTests(IntegrationTests):
         request = self.cp.get_webhook_request(self.get_url('/add/couchpotato'))
         response = yield self.http_client.fetch(request)
         self.assertEqual(200, response.code)
+        yield gen.sleep(0.01)
         yield self.wait_until_processed()
         self.assert_subtitle_contents_matches()
 
@@ -630,6 +631,7 @@ class CouchPotatoTests(IntegrationTests):
         response = yield response_fut
 
         self.assertEqual(200, response.code)
+        yield gen.sleep(0.1)
         yield self.wait_until_processed()
         self.assert_subtitle_contents_matches()
 
