@@ -39,8 +39,8 @@ Words that people are saying
 
 class FakeSettings(object):
     def __init__(self, languages=[Language.fromietf('en')],
-                 min_movie_score=20, desired_movie_score=40,
-                 min_episode_score=50, desired_episode_score=120,
+                 min_movie_score=60, desired_movie_score=100,
+                 min_episode_score=240, desired_episode_score=340,
                  providers=None, provider_configs=None,
                  couchpotato_url=None, couchpotato_api_key=None,
                  sonarr_url=None, sonarr_api_key=None,
@@ -83,10 +83,10 @@ class IntegrationTests(AsyncHTTPTestCase, LogTrapTestCase):
             })
         superliminal.env.settings = fakesettings
         self.patchers = []
-        self.patchers.append(patch('subliminal.api.ProviderPool', wraps=FakeProviderPool))
-        self.patchers.append(patch('subliminal.video.hash_opensubtitles', return_value=OPENSUBTITLES_HASH))
-        self.patchers.append(patch('subliminal.video.hash_napiprojekt', return_value=NAPIPROJEKT_HASH))
-        self.patchers.append(patch('subliminal.video.hash_thesubdb', return_value=THESUBDB_HASH))
+        self.patchers.append(patch('subliminal.core.AsyncProviderPool', wraps=FakeProviderPool))
+        self.patchers.append(patch('subliminal.utils.hash_opensubtitles', return_value=OPENSUBTITLES_HASH))
+        self.patchers.append(patch('subliminal.utils.hash_napiprojekt', return_value=NAPIPROJEKT_HASH))
+        self.patchers.append(patch('subliminal.utils.hash_thesubdb', return_value=THESUBDB_HASH))
         self.patchers.append(patch('os.path.getsize', return_value=self.get_video_size()))
         for patcher in self.patchers:
             patcher.start()
@@ -299,8 +299,8 @@ class AddTests(IntegrationTests):
 
     @gen_test
     def test_doesnt_download_movie_below_score_threshold(self):
-        superliminal.env.settings.min_movie_score = 100
-        superliminal.env.settings.desired_movie_score = 100
+        superliminal.env.settings.min_movie_score = 110
+        superliminal.env.settings.desired_movie_score = 110
         self.set_subtitles([{
             'id': 'theonlysub',
             'language': Language.fromietf('en'),
@@ -317,8 +317,8 @@ class AddTests(IntegrationTests):
 
     @gen_test
     def test_doesnt_download_episode_below_score_threshold(self):
-        superliminal.env.settings.min_episode_score = 150
-        superliminal.env.settings.desired_episode_score = 150
+        superliminal.env.settings.min_episode_score = 350
+        superliminal.env.settings.desired_episode_score = 350
         self.set_subtitles([{
             'id': 'theonlysub',
             'language': Language.fromietf('en'),
@@ -487,7 +487,7 @@ class CheckForBetterTests(IntegrationTests):
 
     @gen_test
     def test_check_for_better_doesnt_get_new_worse_sub(self):
-        superliminal.env.settings.desired_episode_score = 150
+        superliminal.env.settings.desired_episode_score = 350
         oksub = {
             'id': 'oksub',
             'language': Language.fromietf('en'),
@@ -550,8 +550,8 @@ class CheckForBetterTests(IntegrationTests):
 
     @gen_test
     def test_check_for_better_doesnt_download_movie_subs_with_scores_below_min_threshold(self):
-        superliminal.env.settings.min_movie_score = 100
-        superliminal.env.settings.desired_movie_score = 100
+        superliminal.env.settings.min_movie_score = 110
+        superliminal.env.settings.desired_movie_score = 110
         yield self.add_video(name="Movie.Title.2016.720p.WEB-DL.H264-MovieRG.mkv")
 
         okmoviesub = {

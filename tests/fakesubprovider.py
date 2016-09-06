@@ -25,7 +25,7 @@ class FakeSub(Subtitle):
         return self._data['id']
 
     def get_matches(self, video, hearing_impaired=False):
-        matches = super(FakeSub, self).get_matches(video, hearing_impaired=hearing_impaired)
+        matches = set()
 
         if isinstance(video, Episode):
             if video.series and video.series == self.series:

@@ -37,7 +37,7 @@ class SuperliminalCore:
 
     def __init__(self):
         logger.debug("Connecting to providers")
-        self._provider_pool = subliminal.api.ProviderPool(
+        self._provider_pool = subliminal.core.AsyncProviderPool(
             providers=env.settings.providers, provider_configs=env.settings.provider_configs)
         logger.debug("Connecting to data store")
         self._datastore = datastore.CodernityDataStore(env.paths.db_path)
@@ -62,9 +62,9 @@ class SuperliminalCore:
         v = subliminal.video.Video.fromname(name)
         v.size = os.path.getsize(path)
         v.hashes = {
-            'opensubtitles': subliminal.video.hash_opensubtitles(path),
-            'thesubdb': subliminal.video.hash_thesubdb(path),
-            'napiprojekt': subliminal.video.hash_napiprojekt(path)
+            'opensubtitles': subliminal.utils.hash_opensubtitles(path),
+            'thesubdb': subliminal.utils.hash_thesubdb(path),
+            'napiprojekt': subliminal.utils.hash_napiprojekt(path)
         }
         logger.debug("video=%s", v.__dict__)
         self._datastore.add_video(path, v)
@@ -76,13 +76,15 @@ class SuperliminalCore:
         return download['provider'] == sub.provider_name and download['sub_id'] == sub.id and download['lang'] == str(language)
 
     @staticmethod
-    def _compute_score(matches, scores):
+    def _compute_score(video, sub):
+        scores = subliminal.score.get_scores(video)
+        matches = sub.get_matches(video)
         return sum((scores[match] for match in matches))
 
     def _find_best_sub(self, path, video, language, subs, downloaded):
         logger.debug("_find_best_sub(%s, %s, %s, %s, %s)", path, video, language, subs, downloaded)
         fresh_subs = (sub for sub in subs if not any((self._download_matches_sub(download, sub, language) for download in downloaded)))
-        with_scores = [(sub, self._compute_score(sub.get_matches(video), video.scores)) for sub in fresh_subs]
+        with_scores = [(sub, self._compute_score(video, sub)) for sub in fresh_subs]
         if len(with_scores) == 0:
             return (None, 0)
         sub, score = max(with_scores, key=lambda (sub, score): score)
