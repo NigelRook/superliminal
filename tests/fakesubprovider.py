@@ -1,8 +1,11 @@
 from subliminal.providers import Provider
 from subliminal.subtitle import Subtitle
 from subliminal.video import Episode, Movie
+from babelfish import Language
 
 class FakeSub(Subtitle):
+    provider_name = 'fakesub'
+
     def __init__(self, data):
         super(FakeSub, self).__init__(data['language'], data.get('hearing_impared', False), data.get('page_link'))
         self._data = data
@@ -56,9 +59,9 @@ class FakeSub(Subtitle):
 
 class FakeSubProvider(Provider):
     video_types = (Episode, Movie)
+    languages = {Language.fromietf('en'), Language.fromietf('pt-BR')}
  
-    def __init__(self, languages, subs):
-        self.languages = languages
+    def __init__(self, subs):
         self.subs = subs
 
     def initialize(self):
@@ -75,24 +78,3 @@ class FakeSubProvider(Provider):
 
     def download_subtitle(self, subtitle):
         subtitle.content = next(sub['content'] for sub in self.subs if sub['id'] == subtitle.id)
-
-class FakeProviderPool(object):
-    def __init__(self, providers=None, provider_configs=None):
-        if ('fakesub' in providers) and ('fakesub' in provider_configs):
-            self.provider = FakeSubProvider(provider_configs['fakesub']['languages'],
-                                            provider_configs['fakesub']['subs'])
-        else:
-            self.provider = None
-
-    def list_subtitles(self, video, languages):
-        if self.provider:
-            return self.provider.list_subtitles(video, languages)
-        else:
-            return []
-
-    def download_subtitle(self, subtitle):
-        if self.provider:
-            self.provider.download_subtitle(subtitle)
-
-    def terminate(self):
-        pass

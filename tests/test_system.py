@@ -4,11 +4,11 @@ import re
 import pytest
 import tempfile
 import logging
-from fakesubprovider import FakeProviderPool
 from babelfish import Language
 from superliminal.settings import Settings
 from superliminal.api import create_application
 from superliminal.core import SuperliminalCore
+from subliminal.extensions import provider_manager
 import superliminal.env
 import tornado.web
 from tornado import gen
@@ -65,6 +65,7 @@ class FakePaths(object):
 class IntegrationTests(AsyncHTTPTestCase, LogTrapTestCase):
     def setUp(self):
         super(IntegrationTests, self).setUp()
+        provider_manager.register('fakesub = fakesubprovider:FakeSubProvider')
         SuperliminalCore.start_consumer()
         self.db_path = tempfile.mkdtemp()
         settings_file = tempfile.NamedTemporaryFile()
@@ -77,13 +78,11 @@ class IntegrationTests(AsyncHTTPTestCase, LogTrapTestCase):
             providers=['fakesub'],
             provider_configs={
                 'fakesub': {
-                    'languages': [Language.fromietf('en')],
                     'subs': []
                 }
             })
         superliminal.env.settings = fakesettings
         self.patchers = []
-        self.patchers.append(patch('subliminal.core.AsyncProviderPool', wraps=FakeProviderPool))
         self.patchers.append(patch('subliminal.utils.hash_opensubtitles', return_value=OPENSUBTITLES_HASH))
         self.patchers.append(patch('subliminal.utils.hash_napiprojekt', return_value=NAPIPROJEKT_HASH))
         self.patchers.append(patch('subliminal.utils.hash_thesubdb', return_value=THESUBDB_HASH))
@@ -133,6 +132,7 @@ class IntegrationTests(AsyncHTTPTestCase, LogTrapTestCase):
         self.assertTrue(self.subtitle_contents_matches(**kwargs))
 
     def tearDown(self):
+        provider_manager.unregister('fakesub = fakesubprovider:FakeSubProvider')
         for patcher in self.patchers:
             patcher.stop()
         for tempfile in self.tempfiles:
