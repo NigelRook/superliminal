@@ -2,7 +2,9 @@
 import os, sys, site
 
 base_path = os.path.dirname(os.path.realpath(__file__))
-site.addsitedir(os.path.join(base_path, 'libs'))
+libs_dir = os.path.join(base_path, 'libs')
+sys.path.insert(1, libs_dir)
+site.addsitedir(libs_dir)
 
 import superliminal.app
 
