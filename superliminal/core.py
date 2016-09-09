@@ -79,7 +79,7 @@ class SuperliminalCore:
     def _compute_score(video, sub):
         scores = subliminal.score.get_scores(video)
         matches = sub.get_matches(video)
-        return sum((scores[match] for match in matches))
+        return sum((scores.get(match, 0) for match in matches))
 
     def _find_best_sub(self, path, video, language, subs, downloaded):
         logger.debug("_find_best_sub(%s, %s, %s, %s, %s)", path, video, language, subs, downloaded)
