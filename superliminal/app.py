@@ -48,8 +48,8 @@ def check_for_better():
         try:
             logger.info("Initiating check for better subs...")
             SuperliminalCore.check_for_better()
-        finally:
-            self._start_timer()
+        except:
+            logger.exception("Error in check for better")
 
 def run_server():
     application = api.create_application()
