@@ -38,7 +38,7 @@ def init_logging(level):
     logger.addHandler(fh)
 
     # Don't want debug logging from everyone
-    for logger_name in ['guessit', 'subliminal', 'tornado', 'stevedore']:
+    for logger_name in ['guessit', 'tornado', 'stevedore', 'rebulk', 'dogpile']:
         logging.getLogger(logger_name).setLevel(logging.INFO)
 
 @gen.coroutine
