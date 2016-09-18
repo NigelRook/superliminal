@@ -107,8 +107,8 @@ class SuperliminalCore:
             return
         self._provider_pool.download_subtitle(sub)
         subtitle_path = subliminal.subtitle.get_subtitle_path(path, language=lang)
-        with io.open(subtitle_path, 'wb') as f:
-            f.write(sub.content)
+        with io.open(subtitle_path, 'w', encoding='utf-8') as f:
+            f.write(sub.text)
         self._datastore.add_download(path, sub.provider_name, str(sub.id), lang, score)
 
     def _check_for_better(self):
